@@ -143,3 +143,48 @@ class WaybillWorkflowTests(TestCase):
             format="json",
         )
         self.assertEqual(noslash.status_code, 200, noslash.data)
+
+    def test_driver_field_pack_downloads_assigned_waybills(self):
+        wb = Waybill.objects.create(
+            customer=self.customer,
+            created_by=self.sales,
+            driver=self.driver,
+            vehicle=self.vehicle,
+            status=Waybill.Status.IN_TRANSIT,
+            deliver_to="Test Farm",
+            contact_phone="0244000000",
+        )
+        WaybillItem.objects.create(waybill=wb, product=self.product, ordered_qty=4, loaded_qty=4)
+        other = Waybill.objects.create(
+            customer=self.customer,
+            created_by=self.sales,
+            status=Waybill.Status.IN_TRANSIT,
+        )
+        WaybillItem.objects.create(waybill=other, product=self.product, ordered_qty=1)
+        self._auth(self.driver)
+        pack = self.client.get("/api/waybills/field_pack/")
+        self.assertEqual(pack.status_code, 200, pack.data)
+        self.assertEqual(pack.data["count"], 1)
+        self.assertEqual(pack.data["waybills"][0]["id"], wb.id)
+        self.assertEqual(len(pack.data["waybills"][0]["items"]), 1)
+
+    def test_delivery_requires_gps_or_reason(self):
+        wb = Waybill.objects.create(
+            customer=self.customer,
+            created_by=self.sales,
+            driver=self.driver,
+            vehicle=self.vehicle,
+            status=Waybill.Status.DISPATCHED,
+        )
+        item = WaybillItem.objects.create(waybill=wb, product=self.product, ordered_qty=2, loaded_qty=2)
+        self._auth(self.driver)
+        missing = self.client.post(
+            f"/api/waybills/{wb.id}/complete_delivery/",
+            {
+                "outcome": "delivered",
+                "customer_rep_name": "Kojo",
+                "items": [{"id": item.id, "delivered_qty": "2", "rejected_qty": "0"}],
+            },
+            format="json",
+        )
+        self.assertEqual(missing.status_code, 400)

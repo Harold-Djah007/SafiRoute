@@ -32,6 +32,10 @@ export type WaybillList = {
   sync_status: string;
   customer: number;
   customer_name: string;
+  deliver_to?: string;
+  delivery_contact_name?: string;
+  delivery_address_text?: string;
+  contact_phone?: string;
   driver: number | null;
   driver_name: string;
   branch: string;

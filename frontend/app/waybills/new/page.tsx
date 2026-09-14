@@ -114,7 +114,8 @@ export default function NewWaybillPage() {
       <p className="text-sm uppercase tracking-[0.18em] text-gold-600">Sales document</p>
       <h1 className="font-display text-4xl text-forest-800">New waybill</h1>
       <p className="mt-1 max-w-2xl text-sm text-ink/70">
-        Fill the Safisana pad the same way as the paper book. The number is assigned when you save.
+        Fill the Safisana pad the same way as the paper book. The number is assigned when you save. Drivers later
+        add GPS, photos, and the received-by signature in the field app.
       </p>
 
       <form onSubmit={onSubmit} className="waybill-pad mx-auto mt-6 max-w-4xl rounded-[4px] px-6 py-5 sm:px-8 sm:py-7">
@@ -268,7 +269,7 @@ export default function NewWaybillPage() {
           <p className="text-[11px] text-[#3d6680]">
             Digital copy · SafiRoute will add GPS, photos and a QR code at delivery.
           </p>
-          <button disabled={busy} className="rounded-none bg-[#16324a] px-6 py-2 text-sm font-semibold text-white">
+          <button disabled={busy} className="tap rounded-none bg-[#16324a] px-6 py-2 text-sm font-semibold text-white">
             {busy ? "Saving pad…" : "Save waybill"}
           </button>
         </div>

@@ -1,23 +1,50 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { AppShell, StatusPill, formatWhen } from "@/components/AppShell";
 import { api, type WaybillList } from "@/lib/api";
 
-export default function WaybillListPage() {
+const STATUSES = [
+  "",
+  "draft",
+  "pending_approval",
+  "approved",
+  "loaded",
+  "dispatched",
+  "in_transit",
+  "delivered",
+  "partially_delivered",
+  "delivery_failed",
+  "cancelled",
+];
+
+function WaybillListInner() {
+  const searchParams = useSearchParams();
   const [rows, setRows] = useState<WaybillList[]>([]);
   const [q, setQ] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(searchParams.get("status") || "");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (q) params.set("search", q);
-    if (status) params.set("status", status);
-    api<{ results: WaybillList[] }>(`/waybills/?${params}`)
-      .then((data) => setRows(data.results || []))
-      .catch((err) => setError(err.message));
+    const initial = searchParams.get("status") || "";
+    setStatus(initial);
+  }, [searchParams]);
+
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      const params = new URLSearchParams();
+      if (q) params.set("search", q);
+      if (status) params.set("status", status);
+      setLoading(true);
+      api<{ results: WaybillList[] }>(`/waybills/?${params}`)
+        .then((data) => setRows(data.results || []))
+        .catch((err) => setError(err.message))
+        .finally(() => setLoading(false));
+    }, 250);
+    return () => clearTimeout(handle);
   }, [q, status]);
 
   return (
@@ -27,42 +54,31 @@ export default function WaybillListPage() {
           <p className="text-sm uppercase tracking-[0.18em] text-gold-600">Documents</p>
           <h1 className="font-display text-4xl text-forest-800">Waybills</h1>
         </div>
-        <Link href="/waybills/new" className="rounded-xl bg-gold-500 px-4 py-2 text-sm font-semibold text-forest-950">
+        <Link href="/waybills/new" className="tap rounded-xl bg-gold-500 px-4 py-3 text-sm font-semibold text-forest-950">
           Create draft
         </Link>
       </div>
       <div className="mb-4 flex flex-wrap gap-3">
         <input
-          placeholder="Search number, customer, invoice…"
-          className="w-full max-w-md rounded-xl border border-forest-800/15 bg-white px-3 py-2"
+          placeholder="Search number, customer, phone, invoice…"
+          className="tap w-full max-w-md rounded-xl border border-forest-800/15 bg-white px-3 py-3"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
         <select
-          className="rounded-xl border border-forest-800/15 bg-white px-3 py-2"
+          className="tap rounded-xl border border-forest-800/15 bg-white px-3 py-3"
           value={status}
           onChange={(e) => setStatus(e.target.value)}
         >
-          <option value="">All statuses</option>
-          {[
-            "draft",
-            "pending_approval",
-            "approved",
-            "loaded",
-            "dispatched",
-            "in_transit",
-            "delivered",
-            "partially_delivered",
-            "delivery_failed",
-            "cancelled",
-          ].map((s) => (
-            <option key={s} value={s}>
-              {s.replaceAll("_", " ")}
+          {STATUSES.map((s) => (
+            <option key={s || "all"} value={s}>
+              {s ? s.replaceAll("_", " ") : "All statuses"}
             </option>
           ))}
         </select>
       </div>
       {error && <p className="text-rose-700">{error}</p>}
+      {loading && <p className="text-sm text-ink/50">Loading…</p>}
       <div className="grid gap-3">
         {rows.map((row) => (
           <Link
@@ -73,8 +89,11 @@ export default function WaybillListPage() {
             <div>
               <p className="font-display text-xl text-forest-800">{row.waybill_number}</p>
               <p className="text-sm text-ink/70">
-                {row.customer_name} · {row.item_count} line{row.item_count === 1 ? "" : "s"}
+                {row.customer_name}
+                {row.contact_phone ? ` · ${row.contact_phone}` : ""} · {row.item_count} line
+                {row.item_count === 1 ? "" : "s"}
               </p>
+              {row.delivery_address_text && <p className="text-xs text-ink/50">{row.delivery_address_text}</p>}
             </div>
             <div className="text-right">
               <StatusPill status={row.status} label={row.status_display} />
@@ -83,6 +102,20 @@ export default function WaybillListPage() {
           </Link>
         ))}
       </div>
+      {!loading && !rows.length && (
+        <div className="mt-6 rounded-3xl border border-dashed border-forest-800/20 p-8 text-center">
+          <p className="font-display text-2xl text-forest-800">No waybills match</p>
+          <p className="mt-2 text-sm text-ink/70">Try another status, or create a draft from the Safisana pad.</p>
+        </div>
+      )}
     </AppShell>
+  );
+}
+
+export default function WaybillListPage() {
+  return (
+    <Suspense fallback={<AppShell><p>Loading waybills…</p></AppShell>}>
+      <WaybillListInner />
+    </Suspense>
   );
 }

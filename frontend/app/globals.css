@@ -111,3 +111,44 @@ button {
   outline: 2px solid #0f5c2e;
   outline-offset: -2px;
 }
+
+.tap {
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+.field-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.25rem;
+  padding: 0.55rem 0.75rem calc(0.55rem + env(safe-area-inset-bottom));
+  background: #07150c;
+  color: #f4efe2;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.field-nav a,
+.field-nav button {
+  min-height: 44px;
+}
+
+.field-shell {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@media (min-width: 1024px) {
+  .field-nav {
+    left: 50%;
+    right: auto;
+    width: 32rem;
+    transform: translateX(-50%);
+    border-radius: 1.25rem 1.25rem 0 0;
+  }
+}

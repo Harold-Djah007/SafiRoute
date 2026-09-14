@@ -2,145 +2,177 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { AppShell, StatusPill } from "@/components/AppShell";
+import { FieldShell } from "@/components/FieldShell";
+import { StatusPill } from "@/components/AppShell";
+import { SignaturePad, type SignaturePadHandle } from "@/components/SignaturePad";
 import { api, type Waybill } from "@/lib/api";
+import { getGpsFix, type GpsFix } from "@/lib/gps";
+import { compressFiles } from "@/lib/media";
+import { mapsHref, telHref } from "@/lib/format";
+import {
+  cacheWaybill,
+  clearDraft,
+  ensureClientUuid,
+  getQueueItem,
+  readCachedWaybill,
+  readDraft,
+  saveDraft,
+  saveQueueItem,
+  submitDelivery,
+  type QueueItem,
+} from "@/lib/offline";
 
-function uuid() {
-  return crypto.randomUUID();
-}
+type Outcome = QueueItem["outcome"];
 
 export default function FieldDeliveryPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const customerPad = useRef<HTMLCanvasElement>(null);
-  const driverPad = useRef<HTMLCanvasElement>(null);
+  const id = Number(params.id);
+  const customerPad = useRef<SignaturePadHandle>(null);
+  const driverPad = useRef<SignaturePadHandle>(null);
+  const restored = useRef(false);
   const [wb, setWb] = useState<Waybill | null>(null);
+  const [outcome, setOutcome] = useState<Outcome>("delivered");
   const [rep, setRep] = useState("");
   const [role, setRole] = useState("Storekeeper");
   const [notes, setNotes] = useState("");
-  const [gps, setGps] = useState<{ lat?: number; lng?: number; acc?: number; reason?: string }>({});
-  const [photos, setPhotos] = useState<FileList | null>(null);
+  const [failure, setFailure] = useState("");
+  const [qtys, setQtys] = useState<Record<number, string>>({});
+  const [rejected, setRejected] = useState<Record<number, string>>({});
+  const [gps, setGps] = useState<GpsFix>({});
+  const [photos, setPhotos] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [syncState, setSyncState] = useState("ready");
 
   useEffect(() => {
-    api<Waybill>(`/waybills/${params.id}/`)
-      .then((data) => {
+    api<Waybill>(`/waybills/${id}/`)
+      .then(async (data) => {
         setWb(data);
-        localStorage.setItem(`safiroute_wb_${params.id}`, JSON.stringify(data));
+        await cacheWaybill(data);
       })
-      .catch(() => {
-        const cached = localStorage.getItem(`safiroute_wb_${params.id}`);
+      .catch(async () => {
+        const cached = await readCachedWaybill(id);
         if (cached) {
-          setWb(JSON.parse(cached));
+          setWb(cached);
           setSyncState("offline");
-        } else setError("Waybill not downloaded for offline use.");
+        } else setError("This run was not downloaded. Connect once and tap Download for offline.");
       });
-    if (!navigator.geolocation) {
-      setGps({ reason: "Device has no geolocation" });
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => setGps({ lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy }),
-      () => setGps({ reason: "GPS unavailable at delivery site" }),
-      { enableHighAccuracy: true, timeout: 8000 }
-    );
-  }, [params.id]);
+    getGpsFix().then(setGps);
+  }, [id]);
 
   useEffect(() => {
-    for (const canvas of [customerPad.current, driverPad.current]) {
-      if (!canvas) continue;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) continue;
-      ctx.strokeStyle = "#0F5C2E";
-      ctx.lineWidth = 2;
-      let drawing = false;
-      const point = (event: PointerEvent) => {
-        const rect = canvas.getBoundingClientRect();
-        return { x: event.clientX - rect.left, y: event.clientY - rect.top };
-      };
-      const down = (event: PointerEvent) => {
-        drawing = true;
-        const p = point(event);
-        ctx.beginPath();
-        ctx.moveTo(p.x, p.y);
-      };
-      const move = (event: PointerEvent) => {
-        if (!drawing) return;
-        const p = point(event);
-        ctx.lineTo(p.x, p.y);
-        ctx.stroke();
-      };
-      const up = () => {
-        drawing = false;
-      };
-      canvas.addEventListener("pointerdown", down);
-      canvas.addEventListener("pointermove", move);
-      window.addEventListener("pointerup", up);
-    }
+    if (!wb) return;
+    const next: Record<number, string> = {};
+    const rej: Record<number, string> = {};
+    wb.items.forEach((item) => {
+      next[item.id] = item.loaded_qty || item.ordered_qty;
+      rej[item.id] = "0";
+    });
+    setQtys(next);
+    setRejected(rej);
+    readDraft(wb.id).then((draft) => {
+      if (!draft || restored.current) return;
+      restored.current = true;
+      setOutcome(draft.outcome);
+      setRep(draft.customerRepName);
+      setRole(draft.customerRepRole || "Storekeeper");
+      setNotes(draft.deliveryNotes);
+      setFailure(draft.failureReason);
+      if (Object.keys(draft.qtys).length) setQtys(draft.qtys);
+      if (Object.keys(draft.rejected).length) setRejected(draft.rejected);
+      if (draft.customerSignature) customerPad.current?.fromDataURL(draft.customerSignature);
+      if (draft.driverSignature) driverPad.current?.fromDataURL(draft.driverSignature);
+    });
+    getQueueItem(wb.id).then((item) => {
+      if (item) setSyncState("queued");
+    });
   }, [wb]);
 
-  function canvasBlob(canvas: HTMLCanvasElement | null): Promise<Blob | null> {
-    return new Promise((resolve) => {
-      if (!canvas) {
-        resolve(null);
-        return;
-      }
-      canvas.toBlob((blob) => resolve(blob), "image/png");
-    });
-  }
+  useEffect(() => {
+    if (!wb) return;
+    const timer = setTimeout(() => {
+      saveDraft({
+        waybillId: wb.id,
+        outcome,
+        customerRepName: rep,
+        customerRepRole: role,
+        deliveryNotes: notes,
+        failureReason: failure,
+        qtys,
+        rejected,
+        customerSignature: customerPad.current?.toDataURL(),
+        driverSignature: driverPad.current?.toDataURL(),
+      }).catch(() => undefined);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [wb, outcome, rep, role, notes, failure, qtys, rejected]);
 
   async function complete() {
     if (!wb) return;
     setBusy(true);
     setError("");
-    const clientUuid = localStorage.getItem(`safiroute_uuid_${wb.id}`) || uuid();
-    localStorage.setItem(`safiroute_uuid_${wb.id}`, clientUuid);
-    const form = new FormData();
-    form.append("outcome", "delivered");
-    form.append("customer_rep_name", rep);
-    form.append("customer_rep_role", role);
-    form.append("delivery_notes", notes);
-    form.append("client_uuid", clientUuid);
-    form.append("device_timestamp", new Date().toISOString());
-    form.append(
-      "items",
-      JSON.stringify(
-        wb.items.map((item) => ({
-          id: item.id,
-          delivered_qty: item.loaded_qty || item.ordered_qty,
-          rejected_qty: "0",
-        }))
-      )
-    );
-    if (gps.lat && gps.lng) {
-      form.append("lat", String(gps.lat));
-      form.append("lng", String(gps.lng));
-      form.append("gps_accuracy", String(gps.acc || ""));
-    } else {
-      form.append("gps_unavailable_reason", gps.reason || "GPS unavailable");
+    if (outcome !== "delivery_failed" && !rep.trim()) {
+      setBusy(false);
+      setError("Enter the name of the person receiving the goods.");
+      return;
     }
-    const customerSig = await canvasBlob(customerPad.current);
-    const driverSig = await canvasBlob(driverPad.current);
-    if (customerSig) form.append("customer_signature", customerSig, "customer.png");
-    if (driverSig) form.append("driver_signature", driverSig, "driver.png");
-    if (photos) {
-      Array.from(photos).forEach((file) => form.append("photos", file));
+    if (outcome === "delivery_failed" && !failure.trim()) {
+      setBusy(false);
+      setError("Record why the delivery failed.");
+      return;
+    }
+    if (outcome !== "delivery_failed" && customerPad.current?.isEmpty()) {
+      setBusy(false);
+      setError("Customer signature is required.");
+      return;
+    }
+    if (driverPad.current?.isEmpty()) {
+      setBusy(false);
+      setError("Driver signature is required.");
+      return;
+    }
+    if (!gps.lat && !gps.reason) {
+      setBusy(false);
+      setError("Wait for GPS, retry, or confirm it is unavailable.");
+      return;
     }
 
-    const payload = { form, id: wb.id, clientUuid };
+    const item: QueueItem = {
+      waybillId: wb.id,
+      waybillNumber: wb.waybill_number,
+      customerName: wb.deliver_to || wb.customer_detail?.name || "",
+      clientUuid: ensureClientUuid(wb.id),
+      queuedAt: Date.now(),
+      outcome,
+      customerRepName: rep.trim(),
+      customerRepRole: role.trim(),
+      deliveryNotes: notes.trim(),
+      failureReason: failure.trim(),
+      gpsUnavailableReason: gps.reason || "",
+      lat: gps.lat,
+      lng: gps.lng,
+      gpsAccuracy: gps.acc,
+      items: wb.items.map((line) => ({
+        id: line.id,
+        delivered_qty: qtys[line.id] || line.loaded_qty || line.ordered_qty,
+        rejected_qty: rejected[line.id] || "0",
+      })),
+      customerSignature: customerPad.current?.toDataURL() || "",
+      driverSignature: driverPad.current?.toDataURL() || "",
+      photos,
+    };
+
     try {
-      await api(`/waybills/${wb.id}/start_transit/`, { method: "POST" }).catch(() => undefined);
-      await api(`/waybills/${wb.id}/complete_delivery/`, { method: "POST", body: form });
-      localStorage.removeItem(`safiroute_queue_${wb.id}`);
+      await submitDelivery(item);
+      await clearDraft(wb.id);
       setSyncState("synced");
       router.push(`/waybills/${wb.id}`);
     } catch (err) {
-      localStorage.setItem(`safiroute_queue_${wb.id}`, JSON.stringify({ queuedAt: Date.now(), clientUuid }));
+      await saveQueueItem(item);
       setSyncState("queued");
       setError(
-        `${err instanceof Error ? err.message : "Offline"} — delivery stored locally and will retry. Client id ${payload.clientUuid}`
+        `${err instanceof Error ? err.message : "No signal"} — proof is stored on this phone and will send when 4G returns.`
       );
     } finally {
       setBusy(false);
@@ -149,51 +181,184 @@ export default function FieldDeliveryPage() {
 
   if (!wb) {
     return (
-      <AppShell>
-        <p>{error || "Loading assignment…"}</p>
-      </AppShell>
+      <FieldShell>
+        <p className="text-base">{error || "Loading assignment…"}</p>
+      </FieldShell>
     );
   }
 
+  const address = wb.delivery_address_text || wb.customer_detail?.delivery_address;
+  const phone = wb.contact_phone || wb.customer_detail?.phone;
+
   return (
-    <AppShell>
-      <div className="mx-auto max-w-md space-y-4">
-        <div className="flex items-center justify-between">
-          <h1 className="font-display text-3xl text-forest-800">{wb.waybill_number}</h1>
+    <FieldShell>
+      <div className="space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="font-display text-3xl text-forest-800">{wb.waybill_number}</h1>
+            <p className="text-lg font-medium">{wb.deliver_to || wb.customer_detail?.name}</p>
+          </div>
           <StatusPill status={wb.status} label={wb.status_display} />
         </div>
-        <p className="text-sm">
-          {wb.customer_detail.name}
-          <br />
-          {wb.customer_detail.delivery_address}
+        <p className="text-sm text-ink/75">{address}</p>
+        <div className="flex flex-wrap gap-2">
+          {phone && (
+            <a className="tap rounded-xl bg-paper px-3 py-2 text-sm font-semibold" href={telHref(phone)}>
+              Call {phone}
+            </a>
+          )}
+          {address && (
+            <a className="tap rounded-xl bg-paper px-3 py-2 text-sm font-semibold" href={mapsHref(address)} target="_blank" rel="noreferrer">
+              Open map
+            </a>
+          )}
+        </div>
+        <p className="rounded-xl bg-paper px-3 py-2 text-sm">
+          {syncState === "queued" ? "Queued on this phone" : syncState === "offline" ? "Working offline" : "Ready to send"}
+          {gps.lat
+            ? ` · GPS ${gps.lat.toFixed(5)}, ${gps.lng?.toFixed(5)} ±${Math.round(gps.acc || 0)}m`
+            : ` · ${gps.reason || "Getting GPS…"}`}
         </p>
-        <p className="rounded-xl bg-cream px-3 py-2 text-xs">
-          Sync: {syncState}
-          {gps.lat ? ` · GPS ${gps.lat.toFixed(5)}, ${gps.lng?.toFixed(5)}` : ` · ${gps.reason || "locating…"}`}
-        </p>
-        <div className="rounded-2xl bg-paper p-4">
-          {wb.items.map((item) => (
-            <p key={item.id} className="text-sm">
-              {item.product_name} · {item.loaded_qty || item.ordered_qty} {item.unit_of_measure}
-            </p>
+        <button
+          type="button"
+          className="text-sm font-semibold text-forest-800 underline"
+          onClick={async () => setGps(await getGpsFix())}
+        >
+          Refresh GPS
+        </button>
+
+        <div className="grid grid-cols-3 gap-2">
+          {(
+            [
+              ["delivered", "Delivered"],
+              ["partially_delivered", "Partial"],
+              ["delivery_failed", "Failed"],
+            ] as [Outcome, string][]
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setOutcome(value)}
+              className={`tap rounded-2xl px-2 py-3 text-sm font-semibold ${
+                outcome === value ? "bg-forest-800 text-cream" : "bg-paper"
+              }`}
+            >
+              {label}
+            </button>
           ))}
         </div>
-        <input className="w-full rounded-xl border px-3 py-2" placeholder="Customer representative name" value={rep} onChange={(e) => setRep(e.target.value)} />
-        <input className="w-full rounded-xl border px-3 py-2" placeholder="Role" value={role} onChange={(e) => setRole(e.target.value)} />
-        <textarea className="w-full rounded-xl border px-3 py-2" placeholder="Delivery notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-        <label className="block text-sm font-medium">Customer signature</label>
-        <canvas ref={customerPad} width={360} height={140} className="w-full rounded-xl border bg-white touch-none" />
-        <label className="block text-sm font-medium">Driver signature</label>
-        <canvas ref={driverPad} width={360} height={140} className="w-full rounded-xl border bg-white touch-none" />
-        <input type="file" accept="image/*" capture="environment" multiple onChange={(e) => setPhotos(e.target.files)} />
-        {error && <p className="text-sm text-rose-700">{error}</p>}
-        <p className="text-xs text-ink/60">
-          I confirm the goods listed were delivered in the quantities recorded, and that this signature is bound to this waybill, timestamp, and GPS record.
+
+        <section className="rounded-3xl bg-paper p-4">
+          <h2 className="font-display text-xl">Quantities</h2>
+          <div className="mt-3 space-y-3">
+            {wb.items.map((item) => (
+              <div key={item.id} className="border-t border-forest-800/10 pt-3 first:border-0 first:pt-0">
+                <p className="font-medium">{item.product_name}</p>
+                <p className="text-xs text-ink/60">
+                  Ordered {item.ordered_qty} · Loaded {item.loaded_qty || item.ordered_qty} {item.unit_of_measure}
+                </p>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <label className="text-xs">
+                    Delivered
+                    <input
+                      className="tap mt-1 w-full rounded-xl border px-3 py-2 text-base"
+                      inputMode="decimal"
+                      value={qtys[item.id] || ""}
+                      onChange={(e) => setQtys((current) => ({ ...current, [item.id]: e.target.value }))}
+                    />
+                  </label>
+                  <label className="text-xs">
+                    Rejected
+                    <input
+                      className="tap mt-1 w-full rounded-xl border px-3 py-2 text-base"
+                      inputMode="decimal"
+                      value={rejected[item.id] || "0"}
+                      onChange={(e) => setRejected((current) => ({ ...current, [item.id]: e.target.value }))}
+                    />
+                  </label>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {outcome !== "delivery_failed" && (
+          <>
+            <input
+              className="tap w-full rounded-2xl border px-3 py-3 text-base"
+              placeholder="Received by (name)"
+              value={rep}
+              onChange={(e) => setRep(e.target.value)}
+            />
+            <input
+              className="tap w-full rounded-2xl border px-3 py-3 text-base"
+              placeholder="Role"
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+            />
+          </>
+        )}
+        {outcome === "delivery_failed" && (
+          <textarea
+            className="tap w-full rounded-2xl border px-3 py-3 text-base"
+            placeholder="Why did delivery fail?"
+            value={failure}
+            onChange={(e) => setFailure(e.target.value)}
+          />
+        )}
+        <textarea
+          className="tap w-full rounded-2xl border px-3 py-3 text-base"
+          placeholder="Delivery notes / remarks"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+        />
+
+        {outcome !== "delivery_failed" && <SignaturePad ref={customerPad} label="Received by — signature" />}
+        <SignaturePad ref={driverPad} label="Driver signature" />
+
+        <label className="tap block rounded-2xl border-2 border-dashed border-forest-800/30 bg-paper px-4 py-4 text-center text-sm font-semibold">
+          Add delivery photos
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            multiple
+            className="hidden"
+            onChange={async (e) => {
+              const files = Array.from(e.target.files || []);
+              const compressed = await compressFiles(files);
+              setPhotos((current) => [...current, ...compressed.map((item) => item.preview)]);
+            }}
+          />
+        </label>
+        {!!photos.length && (
+          <div className="grid grid-cols-3 gap-2">
+            {photos.map((src, index) => (
+              <button
+                key={index}
+                type="button"
+                onClick={() => setPhotos((current) => current.filter((_, i) => i !== index))}
+                className="overflow-hidden rounded-xl"
+              >
+                <img src={src} alt="" className="h-24 w-full object-cover" />
+              </button>
+            ))}
+          </div>
+        )}
+
+        {error && <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800">{error}</p>}
+        <p className="text-sm text-ink/70">
+          I certify that I have received the above items. This signature is bound to this waybill, the time on this
+          phone, and the GPS fix recorded here.
         </p>
-        <button disabled={busy || !rep} onClick={complete} className="w-full rounded-xl bg-forest-800 py-3 font-semibold text-cream disabled:opacity-50">
-          {busy ? "Completing…" : "Complete delivery"}
+        <button
+          disabled={busy}
+          onClick={complete}
+          className="tap w-full rounded-2xl bg-forest-800 py-4 text-lg font-semibold text-cream disabled:opacity-50"
+        >
+          {busy ? "Saving…" : outcome === "delivery_failed" ? "Record failed delivery" : "Complete delivery"}
         </button>
       </div>
-    </AppShell>
+    </FieldShell>
   );
 }

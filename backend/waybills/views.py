@@ -117,10 +117,15 @@ def verify_waybill(request, token):
     waybill = get_object_or_404(Waybill, verification_token=token)
     payload = {
         "valid": True,
+        "authentic": True,
+        "issuer": "Safisana Ghana Limited",
         "waybill_number": waybill.waybill_number,
         "status": waybill.status,
         "status_display": waybill.get_status_display(),
         "customer": waybill.customer.name,
+        "deliver_to": waybill.deliver_to or waybill.customer.name,
+        "delivery_contact_name": waybill.delivery_contact_name or waybill.customer.contact_name,
+        "contact_phone": waybill.contact_phone or waybill.customer.phone,
         "branch": waybill.branch,
         "created_at": waybill.created_at,
         "dispatch_at": waybill.dispatch_at,
@@ -129,6 +134,8 @@ def verify_waybill(request, token):
         "item_count": waybill.items.count(),
         "has_customer_signature": bool(waybill.customer_signature),
         "has_driver_signature": bool(waybill.driver_signature),
+        "has_gps": waybill.delivery_lat is not None and waybill.delivery_lng is not None,
+        "photo_count": waybill.photos.count(),
     }
     return Response(payload)
 
@@ -169,6 +176,9 @@ class WaybillViewSet(viewsets.ModelViewSet):
         "sales_order_ref",
         "invoice_ref",
         "po_ref",
+        "deliver_to",
+        "delivery_contact_name",
+        "contact_phone",
         "customer__name",
         "customer__account_number",
         "driver__first_name",
@@ -237,6 +247,22 @@ class WaybillViewSet(viewsets.ModelViewSet):
         today = timezone.localdate()
         today_qs = qs.filter(created_at__date=today)
         recent = WaybillListSerializer(qs[:8], many=True, context={"request": request}).data
+        awaiting = WaybillListSerializer(
+            qs.filter(status=Waybill.Status.PENDING_APPROVAL)[:8],
+            many=True,
+            context={"request": request},
+        ).data
+        in_field = WaybillListSerializer(
+            qs.filter(
+                status__in=[
+                    Waybill.Status.LOADED,
+                    Waybill.Status.DISPATCHED,
+                    Waybill.Status.IN_TRANSIT,
+                ]
+            )[:8],
+            many=True,
+            context={"request": request},
+        ).data
         return Response(
             {
                 "counts": counts,
@@ -254,7 +280,30 @@ class WaybillViewSet(viewsets.ModelViewSet):
                     ).count(),
                 },
                 "recent": recent,
+                "awaiting": awaiting,
+                "in_field": in_field,
                 "user": UserSerializer(request.user).data,
+            }
+        )
+
+    @action(detail=False, methods=["get"])
+    def field_pack(self, request):
+        qs = self.get_queryset().filter(
+            status__in=[
+                Waybill.Status.LOADED,
+                Waybill.Status.DISPATCHED,
+                Waybill.Status.IN_TRANSIT,
+            ]
+        )
+        if request.user.role == User.Role.DRIVER:
+            qs = qs.filter(driver=request.user)
+        payload = WaybillSerializer(qs, many=True, context={"request": request}).data
+        return Response(
+            {
+                "downloaded_at": timezone.now(),
+                "count": len(payload),
+                "waybills": payload,
+                "hint": "Keep this pack on the device. Completions queue until 4G returns.",
             }
         )
 
@@ -404,6 +453,15 @@ class WaybillViewSet(viewsets.ModelViewSet):
         outcome = request.data.get("outcome", "delivered")
         if outcome not in {"delivered", "partially_delivered", "delivery_failed"}:
             raise ValidationError({"detail": "outcome must be delivered, partially_delivered, or delivery_failed."})
+        rep_name = (request.data.get("customer_rep_name") or "").strip()
+        if outcome != "delivery_failed" and not rep_name:
+            raise ValidationError({"detail": "Customer representative name is required."})
+        if outcome == "delivery_failed" and not (request.data.get("failure_reason") or "").strip():
+            raise ValidationError({"detail": "Record why this delivery failed."})
+        has_fix = request.data.get("lat") not in (None, "")
+        gps_reason = (request.data.get("gps_unavailable_reason") or "").strip()
+        if not has_fix and not gps_reason:
+            raise ValidationError({"detail": "Capture GPS or record why it was unavailable."})
 
         items = _as_list(request.data.get("items"))
         item_map = {item.id: item for item in waybill.items.all()}

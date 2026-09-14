@@ -55,6 +55,28 @@ class Command(BaseCommand):
 
         if not Waybill.objects.exists():
             self._seed_waybills(users, products, customers, vehicles)
+        else:
+            for waybill in Waybill.objects.select_related("customer"):
+                if waybill.deliver_to:
+                    continue
+                waybill.deliver_to = waybill.customer.name
+                waybill.delivery_contact_name = waybill.customer.contact_name
+                waybill.delivery_address_text = waybill.customer.delivery_address
+                waybill.contact_phone = waybill.customer.phone
+                if not waybill.document_date:
+                    waybill.document_date = timezone.localdate()
+                if not waybill.authorised_by_name:
+                    waybill.authorised_by_name = users["sales"].get_full_name()
+                waybill.save(
+                    update_fields=[
+                        "deliver_to",
+                        "delivery_contact_name",
+                        "delivery_address_text",
+                        "contact_phone",
+                        "document_date",
+                        "authorised_by_name",
+                    ]
+                )
 
         self.stdout.write(self.style.SUCCESS("Demo data ready."))
         self.stdout.write("  Login with any of: admin, sales, supervisor, warehouse, driver, finance")
@@ -107,6 +129,16 @@ class Command(BaseCommand):
         )
         return obj
 
+    def _paper(self, customer, author):
+        return {
+            "deliver_to": customer.name,
+            "delivery_contact_name": customer.contact_name,
+            "delivery_address_text": customer.delivery_address,
+            "contact_phone": customer.phone,
+            "document_date": timezone.localdate(),
+            "authorised_by_name": author.get_full_name(),
+        }
+
     def _seed_waybills(self, users, products, customers, vehicles):
         now = timezone.now()
 
@@ -116,6 +148,7 @@ class Command(BaseCommand):
             sales_order_ref="SO-2609-018",
             status=Waybill.Status.DRAFT,
             branch="Ashaiman Plant",
+            **self._paper(customers[0], users["sales"]),
         )
         WaybillItem.objects.create(waybill=draft, product=products[1], ordered_qty=Decimal("40"))
         record_audit(draft, users["sales"], "created", to_status=draft.status)
@@ -126,6 +159,7 @@ class Command(BaseCommand):
             sales_order_ref="SO-2609-021",
             invoice_ref="INV-4412",
             status=Waybill.Status.PENDING_APPROVAL,
+            **self._paper(customers[1], users["sales"]),
         )
         WaybillItem.objects.create(waybill=pending, product=products[0], ordered_qty=Decimal("200"))
         WaybillItem.objects.create(waybill=pending, product=products[3], ordered_qty=Decimal("50"))
@@ -139,6 +173,7 @@ class Command(BaseCommand):
             approved_at=now,
             sales_order_ref="SO-2609-022",
             status=Waybill.Status.APPROVED,
+            **self._paper(customers[2], users["sales"]),
         )
         WaybillItem.objects.create(waybill=approved, product=products[0], ordered_qty=Decimal("80"))
         record_audit(approved, users["supervisor"], "approved", Waybill.Status.PENDING_APPROVAL, approved.status)
@@ -155,6 +190,8 @@ class Command(BaseCommand):
             driver_phone=users["driver"].phone,
             sales_order_ref="SO-2609-024",
             status=Waybill.Status.LOADED,
+            dispatched_by_name=users["warehouse"].get_full_name(),
+            **self._paper(customers[3], users["sales"]),
         )
         WaybillItem.objects.create(
             waybill=loaded,
@@ -182,6 +219,8 @@ class Command(BaseCommand):
             dispatch_lat=Decimal("5.677400"),
             dispatch_lng=Decimal("0.033200"),
             dispatch_gps_accuracy=8.0,
+            dispatched_by_name=users["warehouse"].get_full_name(),
+            **self._paper(customers[0], users["sales"]),
         )
         WaybillItem.objects.create(
             waybill=dispatched,
@@ -215,6 +254,8 @@ class Command(BaseCommand):
             customer_rep_name="Joseph Tetteh",
             customer_rep_role="Warehouse supervisor",
             delivery_notes="All bags received dry and sealed.",
+            dispatched_by_name=users["warehouse"].get_full_name(),
+            **self._paper(customers[1], users["sales"]),
         )
         WaybillItem.objects.create(
             waybill=delivered,

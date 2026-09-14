@@ -3,6 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { AppShell, StatusPill, formatWhen } from "@/components/AppShell";
+import { WaybillPad } from "@/components/WaybillPad";
 import { api, mediaUrl, readUser, type User, type Waybill } from "@/lib/api";
 
 export default function WaybillDetailPage() {
@@ -15,6 +16,8 @@ export default function WaybillDetailPage() {
   const [driver, setDriver] = useState("");
   const [vehicle, setVehicle] = useState("");
   const [reason, setReason] = useState("");
+  const [loadQtys, setLoadQtys] = useState<Record<number, string>>({});
+  const [batches, setBatches] = useState<Record<number, string>>({});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
 
@@ -23,6 +26,14 @@ export default function WaybillDetailPage() {
     setWb(data);
     if (data.driver) setDriver(String(data.driver));
     if (data.vehicle) setVehicle(String(data.vehicle));
+    const qtys: Record<number, string> = {};
+    const batch: Record<number, string> = {};
+    data.items.forEach((item) => {
+      qtys[item.id] = item.loaded_qty || item.ordered_qty;
+      batch[item.id] = item.batch_number || "";
+    });
+    setLoadQtys(qtys);
+    setBatches(batch);
   }
 
   useEffect(() => {
@@ -62,8 +73,8 @@ export default function WaybillDetailPage() {
           post("load", {
             items: wb.items.map((item) => ({
               id: item.id,
-              loaded_qty: item.ordered_qty,
-              batch_number: item.batch_number || "FT-DEMO",
+              loaded_qty: loadQtys[item.id] || item.ordered_qty,
+              batch_number: batches[item.id] || item.batch_number || "FT-DEMO",
             })),
           }),
       });
@@ -84,7 +95,10 @@ export default function WaybillDetailPage() {
         },
       });
     }
-    if (["supervisor", "admin"].includes(role) && !["delivered", "partially_delivered", "delivery_failed", "cancelled"].includes(wb.status)) {
+    if (
+      ["supervisor", "admin"].includes(role) &&
+      !["delivered", "partially_delivered", "delivery_failed", "cancelled"].includes(wb.status)
+    ) {
       items.push({
         key: "cancel",
         label: "Cancel",
@@ -92,7 +106,7 @@ export default function WaybillDetailPage() {
       });
     }
     return items;
-  }, [wb, user, driver, vehicle, reason, router]);
+  }, [wb, user, driver, vehicle, reason, router, loadQtys, batches]);
 
   if (!wb) {
     return (
@@ -114,7 +128,7 @@ export default function WaybillDetailPage() {
         </div>
         {wb.pdf_file && (
           <a
-            className="rounded-xl bg-gold-500 px-4 py-2 text-sm font-semibold text-forest-950"
+            className="tap rounded-xl bg-gold-500 px-4 py-3 text-sm font-semibold text-forest-950"
             href={mediaUrl(wb.pdf_file)}
             target="_blank"
             rel="noreferrer"
@@ -125,64 +139,50 @@ export default function WaybillDetailPage() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[2fr_1fr]">
-        <section className="ticket rounded-3xl bg-paper p-6">
-          <h2 className="font-display text-2xl">Safisana waybill</h2>
-          <p className="mt-2 font-semibold">{wb.deliver_to || wb.customer_detail.name}</p>
-          <p className="text-sm text-ink/70">
-            Contact: {wb.delivery_contact_name || wb.customer_detail.contact_name || "—"}
-            <br />
-            {wb.delivery_address_text || wb.customer_detail.delivery_address}
-            <br />
-            Phone: {wb.contact_phone || wb.customer_detail.phone || "—"}
-            <br />
-            Date: {wb.document_date || "—"}
-          </p>
-          <p className="mt-3 text-sm">
-            Authorised by {wb.authorised_by_name || "—"} · Dispatched by {wb.dispatched_by_name || wb.driver_detail?.full_name || "—"}
-          </p>
-          <table className="mt-4 w-full text-sm">
-            <thead>
-              <tr className="text-left text-ink/50">
-                <th className="py-2">Description</th>
-                <th>Qty</th>
-                <th>Remarks</th>
-              </tr>
-            </thead>
-            <tbody>
-              {wb.items.map((item) => (
-                <tr key={item.id} className="border-t">
-                  <td className="py-2">{item.product_name}</td>
-                  <td>{item.delivered_qty ?? item.loaded_qty ?? item.ordered_qty}</td>
-                  <td>{item.notes || "—"}</td>
-                </tr>
+        <div className="space-y-4">
+          <WaybillPad waybill={wb} />
+          {!!wb.photos.length && (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {wb.photos.map((photo) => (
+                <a key={photo.id} href={mediaUrl(photo.image)} target="_blank" rel="noreferrer">
+                  <img src={mediaUrl(photo.image)} alt={photo.caption} className="h-28 w-full rounded-2xl object-cover" />
+                </a>
               ))}
-            </tbody>
-          </table>
-          {(wb.customer_signature || wb.driver_signature) && (
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              {wb.customer_signature && (
-                <figure>
-                  <figcaption className="text-xs uppercase tracking-wide text-ink/50">Customer</figcaption>
-                  <img src={mediaUrl(wb.customer_signature)} alt="Customer signature" className="mt-1 h-24 rounded-xl bg-white object-contain" />
-                  <p className="text-sm">{wb.customer_rep_name} · {wb.customer_rep_role}</p>
-                </figure>
-              )}
-              {wb.driver_signature && (
-                <figure>
-                  <figcaption className="text-xs uppercase tracking-wide text-ink/50">Driver</figcaption>
-                  <img src={mediaUrl(wb.driver_signature)} alt="Driver signature" className="mt-1 h-24 rounded-xl bg-white object-contain" />
-                </figure>
-              )}
             </div>
           )}
-        </section>
+        </div>
 
         <aside className="space-y-4">
           <div className="rounded-3xl bg-forest-950 p-5 text-cream">
             <h2 className="font-display text-xl">Actions</h2>
+            {wb.status === "approved" && ["warehouse", "admin"].includes(user?.role || "") && (
+              <div className="mt-3 space-y-2 rounded-2xl bg-white/10 p-3 text-sm">
+                <p className="text-gold-400">Loaded quantities</p>
+                {wb.items.map((item) => (
+                  <div key={item.id} className="grid grid-cols-2 gap-2">
+                    <label className="text-xs">
+                      {item.product_name}
+                      <input
+                        className="mt-1 w-full rounded-lg px-2 py-2 text-ink"
+                        value={loadQtys[item.id] || ""}
+                        onChange={(e) => setLoadQtys((current) => ({ ...current, [item.id]: e.target.value }))}
+                      />
+                    </label>
+                    <label className="text-xs">
+                      Batch
+                      <input
+                        className="mt-1 w-full rounded-lg px-2 py-2 text-ink"
+                        value={batches[item.id] || ""}
+                        onChange={(e) => setBatches((current) => ({ ...current, [item.id]: e.target.value }))}
+                      />
+                    </label>
+                  </div>
+                ))}
+              </div>
+            )}
             {["loaded", "approved", "dispatched"].includes(wb.status) && (
               <div className="mt-3 space-y-2">
-                <select className="w-full rounded-lg px-2 py-2 text-ink" value={driver} onChange={(e) => setDriver(e.target.value)}>
+                <select className="tap w-full rounded-lg px-2 py-3 text-ink" value={driver} onChange={(e) => setDriver(e.target.value)}>
                   <option value="">Select driver</option>
                   {drivers.map((d) => (
                     <option key={d.id} value={d.id}>
@@ -190,7 +190,7 @@ export default function WaybillDetailPage() {
                     </option>
                   ))}
                 </select>
-                <select className="w-full rounded-lg px-2 py-2 text-ink" value={vehicle} onChange={(e) => setVehicle(e.target.value)}>
+                <select className="tap w-full rounded-lg px-2 py-3 text-ink" value={vehicle} onChange={(e) => setVehicle(e.target.value)}>
                   <option value="">Select vehicle</option>
                   {vehicles.map((v) => (
                     <option key={v.id} value={v.id}>
@@ -201,7 +201,7 @@ export default function WaybillDetailPage() {
               </div>
             )}
             <input
-              className="mt-3 w-full rounded-lg px-2 py-2 text-ink"
+              className="tap mt-3 w-full rounded-lg px-2 py-3 text-ink"
               placeholder="Reason (reject / cancel)"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
@@ -211,7 +211,7 @@ export default function WaybillDetailPage() {
                 <button
                   key={action.key}
                   disabled={!!busy}
-                  className="rounded-xl bg-gold-500 py-2 text-sm font-semibold text-forest-950 disabled:opacity-50"
+                  className="tap rounded-xl bg-gold-500 py-3 text-sm font-semibold text-forest-950 disabled:opacity-50"
                   onClick={async () => {
                     setBusy(action.key);
                     setError("");
@@ -227,12 +227,14 @@ export default function WaybillDetailPage() {
                   {busy === action.key ? "Working…" : action.label}
                 </button>
               ))}
+              {!actions.length && <p className="text-sm text-cream/70">No actions for your role on this status.</p>}
             </div>
             {error && <p className="mt-3 text-sm text-rose-200">{error}</p>}
             <p className="mt-4 text-xs text-cream/60">
               Driver {wb.driver_detail?.full_name || "unassigned"} · Vehicle {wb.vehicle_detail?.registration_number || "—"}
               <br />
               Dispatch {formatWhen(wb.dispatch_at)} · Delivery {formatWhen(wb.delivery_at)}
+              {wb.delivery_lat ? ` · GPS ${wb.delivery_lat}, ${wb.delivery_lng}` : ""}
             </p>
             {wb.verification_token && (
               <a className="mt-3 inline-block text-sm text-gold-400" href={`/verify/${wb.verification_token}`} target="_blank">

@@ -104,16 +104,25 @@ Password for every seeded account: **`safiroute`**
 | `finance` | Read-only operations view |
 | `admin` | Everything, plus `/admin/` |
 
-API: http://127.0.0.1:8000/api/  
-Django admin: http://127.0.0.1:8000/admin/  
-Health: http://127.0.0.1:8000/api/health/
+API: http://127.0.0.1:8877/api/  
+Django admin: http://127.0.0.1:8877/admin/  
+Health: http://127.0.0.1:8877/api/health/
+
+### Field-ready driver flow
+
+Sign in as `driver` (password `safiroute`) and open **http://localhost:3000/field**.
+
+1. Tap **Download for offline** while you still have signal. Assigned waybills (loaded / dispatched / in transit) are stored on the phone.
+2. Open a run. Quantities, GPS, photos, and both signatures work with no coverage.
+3. Complete the delivery. If 4G is down, the proof queues on the device and sends when the phone is online again. Replays use the same client UUID so they cannot double-post.
+4. Add the field page to the home screen for a full-screen driver app.
 
 ### Suggested click-through
 
 1. Sign in as `sales` → **New waybill** → save draft → **Submit for approval**
 2. Sign in as `supervisor` → open the waybill → **Approve**
-3. Sign in as `warehouse` → **Confirm loaded** → assign driver/vehicle → **Dispatch**
-4. Sign in as `driver` → **Field app** → open the assignment → sign both pads → **Complete delivery**
+3. Sign in as `warehouse` → enter loaded qty / batch → **Confirm loaded** → assign driver/vehicle → **Dispatch**
+4. Sign in as `driver` → **Field app** → download → open the assignment → sign both pads → **Complete delivery**
 5. Open the verification link on the waybill, or download the branded PDF
 
 ## Mobile (Flutter)
@@ -124,7 +133,7 @@ The driver workflow is already testable in the browser at `/field`. To run the n
 cd mobile
 flutter create . --project-name safiroute_mobile --org org.safisana.safiroute
 flutter pub get
-flutter run --dart-define=SAFIROUTE_API=http://127.0.0.1:8000/api
+flutter run --dart-define=SAFIROUTE_API=http://127.0.0.1:8877/api
 ```
 
 On a physical phone, point `SAFIROUTE_API` at your computer’s LAN IP.
