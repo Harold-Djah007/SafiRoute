@@ -48,7 +48,7 @@ export default function FieldDeliveryPage() {
 
   useEffect(() => {
     if (invalidId) {
-      router.replace(rawId === "queue" || rawId === "sync" ? "/field/queue" : "/field");
+      router.replace("/field");
       return;
     }
     api<Waybill>(`/waybills/${id}/`)

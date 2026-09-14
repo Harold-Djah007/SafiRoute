@@ -91,7 +91,7 @@ export default function WaybillDetailPage() {
         key: "field",
         label: "Open field delivery",
         run: async () => {
-          router.push(`/field/${wb.id}`);
+          router.push(`/field/run/${wb.id}`);
         },
       });
     }

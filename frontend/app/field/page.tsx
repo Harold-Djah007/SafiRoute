@@ -181,7 +181,7 @@ function FieldHomeInner() {
                   </a>
                 )}
                 <Link
-                  href={`/field/${row.id}`}
+                  href={`/field/run/${row.id}`}
                   className="tap ml-auto rounded-xl bg-gold-500 px-4 py-2 text-sm font-semibold text-forest-950"
                   onClick={() => cacheWaybill(row)}
                 >
