@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { FieldShell } from "@/components/FieldShell";
 import { StatusPill } from "@/components/AppShell";
@@ -22,7 +22,8 @@ const ACTIVE = new Set(["loaded", "dispatched", "in_transit"]);
 
 function FieldHomeInner() {
   const search = useSearchParams();
-  const showQueue = search.get("tab") === "sync";
+  const pathname = usePathname();
+  const showQueue = search.get("tab") === "sync" || pathname.endsWith("/queue");
   const [rows, setRows] = useState<Waybill[]>([]);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [offline, setOffline] = useState(false);

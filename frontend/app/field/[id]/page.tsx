@@ -27,7 +27,9 @@ type Outcome = QueueItem["outcome"];
 export default function FieldDeliveryPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const id = Number(params.id);
+  const rawId = String(params.id || "");
+  const id = Number(rawId);
+  const invalidId = !Number.isFinite(id);
   const customerPad = useRef<SignaturePadHandle>(null);
   const driverPad = useRef<SignaturePadHandle>(null);
   const restored = useRef(false);
@@ -46,6 +48,10 @@ export default function FieldDeliveryPage() {
   const [syncState, setSyncState] = useState("ready");
 
   useEffect(() => {
+    if (invalidId) {
+      router.replace(rawId === "queue" || rawId === "sync" ? "/field/queue" : "/field");
+      return;
+    }
     api<Waybill>(`/waybills/${id}/`)
       .then(async (data) => {
         setWb(data);
@@ -59,7 +65,7 @@ export default function FieldDeliveryPage() {
         } else setError("This run was not downloaded. Connect once and tap Download for offline.");
       });
     getGpsFix().then(setGps);
-  }, [id]);
+  }, [id, invalidId, rawId, router]);
 
   useEffect(() => {
     if (!wb) return;
@@ -177,6 +183,14 @@ export default function FieldDeliveryPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (invalidId) {
+    return (
+      <FieldShell>
+        <p>Opening field queue…</p>
+      </FieldShell>
+    );
   }
 
   if (!wb) {

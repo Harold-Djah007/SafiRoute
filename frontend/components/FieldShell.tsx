@@ -87,10 +87,10 @@ function FieldShellInner({ children }: { children: React.ReactNode }) {
       </header>
       <main className="mx-auto w-full max-w-lg px-4 pb-28 pt-4">{children}</main>
       <nav className="field-nav">
-        <Link href="/field" className={pathname === "/field" && tab !== "sync" ? "text-gold-400" : "text-cream/80"}>
+        <Link href="/field" className={pathname === "/field" ? "text-gold-400" : "text-cream/80"}>
           Runs
         </Link>
-        <Link href="/field?tab=sync" className={tab === "sync" ? "text-gold-400" : "text-cream/80"}>
+        <Link href="/field/queue" className={pathname.endsWith("/queue") || tab === "sync" ? "text-gold-400" : "text-cream/80"}>
           Queue{queued ? ` (${queued})` : ""}
         </Link>
         <Link href="/waybills" className="text-cream/80">

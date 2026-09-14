@@ -26,7 +26,11 @@ const PIPELINE: { key: string; label: string }[] = [
 export default function DashboardPage() {
   const [data, setData] = useState<Dash | null>(null);
   const [error, setError] = useState("");
-  const [name, setName] = useState("");
+  const [name, setName] = useState(() => {
+    if (typeof window === "undefined") return "";
+    const user = readUser();
+    return user?.full_name?.split(" ")[0] || "";
+  });
 
   useEffect(() => {
     const user = readUser();
