@@ -78,6 +78,14 @@ export type Waybill = {
   invoice_ref: string;
   po_ref: string;
   branch: string;
+  deliver_to: string;
+  delivery_contact_name: string;
+  delivery_address_text: string;
+  contact_phone: string;
+  document_date: string | null;
+  authorised_by_name: string;
+  authorised_remarks: string;
+  dispatched_by_name: string;
   created_by_detail?: User;
   driver: number | null;
   driver_detail: User | null;

@@ -120,16 +120,24 @@ def generate_waybill_pdf(waybill):
     story.append(Spacer(1, 8))
 
     cust = waybill.customer
+    deliver_to = waybill.deliver_to or cust.name
+    contact = waybill.delivery_contact_name or cust.contact_name
+    address = waybill.delivery_address_text or cust.delivery_address
+    phone = waybill.contact_phone or cust.phone
+    doc_date = waybill.document_date or timezone.localdate()
     meta = [
         [
-            Paragraph("Customer", label),
+            Paragraph("Deliver to / Date", label),
             Paragraph("Dispatch", label),
             Paragraph("References", label),
         ],
         [
             Paragraph(
-                f"<b>{cust.name}</b><br/>{cust.account_number}<br/>{cust.delivery_address}<br/>"
-                f"{cust.contact_name} {cust.phone}<br/>GhanaPost GPS: {cust.ghana_post_gps or '—'}",
+                f"<b>{deliver_to}</b><br/>"
+                f"Contact: {contact or '—'}<br/>"
+                f"{address}<br/>"
+                f"Phone: {phone or '—'}<br/>"
+                f"Date: {doc_date.strftime('%d %b %Y')}",
                 body,
             ),
             Paragraph(
@@ -170,21 +178,20 @@ def generate_waybill_pdf(waybill):
     story.append(meta_table)
     story.append(Spacer(1, 8))
 
-    rows = [["SKU", "Product", "Unit", "Ordered", "Loaded", "Delivered", "Rejected", "Batch"]]
+    rows = [["Description", "Qty", "Remarks"]]
     for item in waybill.items.all():
-        rows.append(
-            [
-                item.sku,
-                item.product_name,
-                item.unit_of_measure,
-                str(item.ordered_qty),
-                "" if item.loaded_qty is None else str(item.loaded_qty),
-                "" if item.delivered_qty is None else str(item.delivered_qty),
-                str(item.rejected_qty),
-                item.batch_number or "—",
-            ]
-        )
-    items_table = Table(rows, colWidths=[22 * mm, 48 * mm, 16 * mm, 20 * mm, 20 * mm, 22 * mm, 20 * mm, 20 * mm])
+        desc = item.product_name or (item.product.name if item.product_id else "")
+        qty = ""
+        if item.delivered_qty is not None:
+            qty = str(item.delivered_qty)
+        elif item.loaded_qty is not None:
+            qty = str(item.loaded_qty)
+        else:
+            qty = str(item.ordered_qty)
+        rows.append([desc, qty, item.notes or "—"])
+    if len(rows) == 1:
+        rows.append(["—", "", ""])
+    items_table = Table(rows, colWidths=[110 * mm, 22 * mm, 46 * mm])
     items_table.setStyle(
         TableStyle(
             [
@@ -192,7 +199,7 @@ def generate_waybill_pdf(waybill):
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("FONTSIZE", (0, 0), (-1, -1), 8),
-                ("ALIGN", (3, 1), (-2, -1), "RIGHT"),
+                ("ALIGN", (1, 1), (1, -1), "RIGHT"),
                 ("GRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#C9D4CB")),
                 ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, CREAM]),
                 ("LEFTPADDING", (0, 0), (-1, -1), 4),
@@ -216,9 +223,12 @@ def generate_waybill_pdf(waybill):
     story.append(Paragraph("Proof of delivery", ParagraphStyle("h2", parent=title, fontSize=11)))
     story.append(
         Paragraph(
+            f"Authorised by: {waybill.authorised_by_name or '—'}<br/>"
+            f"Dispatched by: {waybill.dispatched_by_name or (waybill.driver.get_full_name() if waybill.driver else '—')}<br/>"
             f"Received by: <b>{waybill.customer_rep_name or '—'}</b> "
             f"({waybill.customer_rep_role or '—'})<br/>"
-            f"Notes: {waybill.delivery_notes or '—'}<br/>"
+            f"I certify that I have received the above items.<br/>"
+            f"Notes: {waybill.delivery_notes or waybill.authorised_remarks or '—'}<br/>"
             f"Delivery GPS: {gps}<br/>"
             f"Device time: {timezone.localtime(waybill.delivery_device_at).strftime('%d %b %Y %H:%M:%S') if waybill.delivery_device_at else '—'} · "
             f"Server time: {timezone.localtime(waybill.delivery_at).strftime('%d %b %Y %H:%M:%S') if waybill.delivery_at else '—'}",

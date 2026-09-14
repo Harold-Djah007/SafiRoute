@@ -98,6 +98,15 @@ class Waybill(models.Model):
     po_ref = models.CharField(max_length=64, blank=True)
     branch = models.CharField(max_length=120, default="Ashaiman Plant")
 
+    deliver_to = models.CharField(max_length=200, blank=True)
+    delivery_contact_name = models.CharField(max_length=160, blank=True)
+    delivery_address_text = models.TextField(blank=True)
+    contact_phone = models.CharField(max_length=32, blank=True)
+    document_date = models.DateField(null=True, blank=True)
+    authorised_by_name = models.CharField(max_length=160, blank=True)
+    authorised_remarks = models.TextField(blank=True)
+    dispatched_by_name = models.CharField(max_length=160, blank=True)
+
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="created_waybills"
     )
@@ -198,11 +207,11 @@ class Waybill(models.Model):
 
 class WaybillItem(models.Model):
     waybill = models.ForeignKey(Waybill, on_delete=models.CASCADE, related_name="items")
-    product = models.ForeignKey(Product, on_delete=models.PROTECT)
-    product_name = models.CharField(max_length=200)
-    sku = models.CharField(max_length=40)
-    unit_of_measure = models.CharField(max_length=24)
-    ordered_qty = models.DecimalField(max_digits=12, decimal_places=2)
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, null=True, blank=True)
+    product_name = models.CharField(max_length=200, blank=True)
+    sku = models.CharField(max_length=40, blank=True)
+    unit_of_measure = models.CharField(max_length=24, blank=True)
+    ordered_qty = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     loaded_qty = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     delivered_qty = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     rejected_qty = models.DecimalField(max_digits=12, decimal_places=2, default=0)

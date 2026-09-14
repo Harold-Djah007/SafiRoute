@@ -126,37 +126,34 @@ export default function WaybillDetailPage() {
 
       <div className="grid gap-6 xl:grid-cols-[2fr_1fr]">
         <section className="ticket rounded-3xl bg-paper p-6">
-          <h2 className="font-display text-2xl">Customer & cargo</h2>
-          <p className="mt-2 font-semibold">{wb.customer_detail.name}</p>
+          <h2 className="font-display text-2xl">Safisana waybill</h2>
+          <p className="mt-2 font-semibold">{wb.deliver_to || wb.customer_detail.name}</p>
           <p className="text-sm text-ink/70">
-            {wb.customer_detail.account_number} · {wb.customer_detail.delivery_address}
+            Contact: {wb.delivery_contact_name || wb.customer_detail.contact_name || "—"}
             <br />
-            {wb.customer_detail.contact_name} {wb.customer_detail.phone}
+            {wb.delivery_address_text || wb.customer_detail.delivery_address}
             <br />
-            GhanaPost GPS: {wb.customer_detail.ghana_post_gps || "—"}
+            Phone: {wb.contact_phone || wb.customer_detail.phone || "—"}
+            <br />
+            Date: {wb.document_date || "—"}
           </p>
           <p className="mt-3 text-sm">
-            SO {wb.sales_order_ref || "—"} · INV {wb.invoice_ref || "—"} · PO {wb.po_ref || "—"}
+            Authorised by {wb.authorised_by_name || "—"} · Dispatched by {wb.dispatched_by_name || wb.driver_detail?.full_name || "—"}
           </p>
           <table className="mt-4 w-full text-sm">
             <thead>
               <tr className="text-left text-ink/50">
-                <th className="py-2">Product</th>
-                <th>Ordered</th>
-                <th>Loaded</th>
-                <th>Delivered</th>
+                <th className="py-2">Description</th>
+                <th>Qty</th>
+                <th>Remarks</th>
               </tr>
             </thead>
             <tbody>
               {wb.items.map((item) => (
                 <tr key={item.id} className="border-t">
-                  <td className="py-2">
-                    {item.product_name}
-                    <span className="block text-xs text-ink/50">{item.sku} · {item.batch_number || "no batch"}</span>
-                  </td>
-                  <td>{item.ordered_qty}</td>
-                  <td>{item.loaded_qty ?? "—"}</td>
-                  <td>{item.delivered_qty ?? "—"}</td>
+                  <td className="py-2">{item.product_name}</td>
+                  <td>{item.delivered_qty ?? item.loaded_qty ?? item.ordered_qty}</td>
+                  <td>{item.notes || "—"}</td>
                 </tr>
               ))}
             </tbody>

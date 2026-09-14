@@ -101,6 +101,26 @@ class WaybillWorkflowTests(TestCase):
         self.assertEqual(replay.status_code, 200)
         self.assertEqual(Waybill.objects.count(), 1)
 
+    def test_paper_form_create_without_customer_id(self):
+        self._auth(self.sales)
+        res = self.client.post(
+            "/api/waybills/",
+            {
+                "deliver_to": "Ashaiman Vegetable Growers Cooperative",
+                "delivery_contact_name": "Madam Akosua",
+                "delivery_address_text": "Community 22, Ashaiman",
+                "contact_phone": "0244200101",
+                "authorised_by_name": "Ama Mensah",
+                "items": [
+                    {"product_name": "Fortifer Organic Fertilizer 50kg", "ordered_qty": "40", "notes": "Dry bags"}
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(res.status_code, 201, res.data)
+        self.assertEqual(res.data["deliver_to"], "Ashaiman Vegetable Growers Cooperative")
+        self.assertEqual(res.data["items"][0]["product_name"], "Fortifer Organic Fertilizer 50kg")
+
     def test_driver_cannot_see_unassigned(self):
         wb = Waybill.objects.create(customer=self.customer, created_by=self.sales)
         WaybillItem.objects.create(waybill=wb, product=self.product, ordered_qty=1)

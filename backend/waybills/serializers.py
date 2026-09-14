@@ -1,3 +1,4 @@
+from django.utils import timezone
 from rest_framework import serializers
 
 from .models import (
@@ -55,6 +56,10 @@ class VehicleSerializer(serializers.ModelSerializer):
 
 
 class WaybillItemSerializer(serializers.ModelSerializer):
+    product = serializers.PrimaryKeyRelatedField(
+        queryset=Product.objects.all(), required=False, allow_null=True
+    )
+
     class Meta:
         model = WaybillItem
         fields = [
@@ -70,7 +75,6 @@ class WaybillItemSerializer(serializers.ModelSerializer):
             "batch_number",
             "notes",
         ]
-        read_only_fields = ["product_name", "sku", "unit_of_measure"]
 
 
 class WaybillPhotoSerializer(serializers.ModelSerializer):
@@ -102,6 +106,9 @@ class WaybillSerializer(serializers.ModelSerializer):
     items = WaybillItemSerializer(many=True)
     photos = WaybillPhotoSerializer(many=True, read_only=True)
     audit_logs = AuditLogSerializer(many=True, read_only=True)
+    customer = serializers.PrimaryKeyRelatedField(
+        queryset=Customer.objects.all(), required=False, allow_null=True
+    )
     customer_detail = CustomerSerializer(source="customer", read_only=True)
     driver_detail = UserSerializer(source="driver", read_only=True)
     created_by_detail = UserSerializer(source="created_by", read_only=True)
@@ -126,6 +133,14 @@ class WaybillSerializer(serializers.ModelSerializer):
             "invoice_ref",
             "po_ref",
             "branch",
+            "deliver_to",
+            "delivery_contact_name",
+            "delivery_address_text",
+            "contact_phone",
+            "document_date",
+            "authorised_by_name",
+            "authorised_remarks",
+            "dispatched_by_name",
             "created_by",
             "created_by_detail",
             "approved_by",
@@ -185,9 +200,11 @@ class WaybillSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         items_data = validated_data.pop("items", [])
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        self._apply_paper_defaults(validated_data, user)
         waybill = Waybill.objects.create(**validated_data)
-        for item in items_data:
-            WaybillItem.objects.create(waybill=waybill, **item)
+        self._write_items(waybill, items_data)
         return waybill
 
     def update(self, instance, validated_data):
@@ -197,13 +214,52 @@ class WaybillSerializer(serializers.ModelSerializer):
         instance.save()
         if items_data is not None:
             instance.items.all().delete()
-            for item in items_data:
-                WaybillItem.objects.create(waybill=instance, **item)
+            self._write_items(instance, items_data)
         return instance
+
+    def _apply_paper_defaults(self, data, user):
+        customer = data.get("customer")
+        deliver_to = (data.get("deliver_to") or "").strip()
+        if customer is None:
+            if not deliver_to:
+                raise serializers.ValidationError({"deliver_to": "Deliver to is required."})
+            customer = Customer.objects.filter(name__iexact=deliver_to).first()
+            if customer is None:
+                stamp = timezone.now().strftime("%y%m%d%H%M%S")
+                customer = Customer.objects.create(
+                    name=deliver_to,
+                    account_number=f"WB-{stamp}",
+                    delivery_address=data.get("delivery_address_text") or "",
+                    contact_name=data.get("delivery_contact_name") or "",
+                    phone=data.get("contact_phone") or "",
+                )
+            data["customer"] = customer
+        if not data.get("deliver_to"):
+            data["deliver_to"] = customer.name
+        if not data.get("delivery_contact_name"):
+            data["delivery_contact_name"] = customer.contact_name
+        if not data.get("delivery_address_text"):
+            data["delivery_address_text"] = customer.delivery_address
+        if not data.get("contact_phone"):
+            data["contact_phone"] = customer.phone
+        if not data.get("document_date"):
+            data["document_date"] = timezone.localdate()
+        if not data.get("authorised_by_name") and user and user.is_authenticated:
+            data["authorised_by_name"] = user.get_full_name() or user.username
+
+    def _write_items(self, waybill, items_data):
+        for item in items_data:
+            name = (item.get("product_name") or "").strip()
+            product = item.get("product")
+            if not product and not name:
+                continue
+            if item.get("ordered_qty") in (None, ""):
+                item["ordered_qty"] = 0
+            WaybillItem.objects.create(waybill=waybill, **item)
 
 
 class WaybillListSerializer(serializers.ModelSerializer):
-    customer_name = serializers.CharField(source="customer.name", read_only=True)
+    customer_name = serializers.SerializerMethodField()
     driver_name = serializers.SerializerMethodField()
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     item_count = serializers.IntegerField(source="items.count", read_only=True)
@@ -228,6 +284,9 @@ class WaybillListSerializer(serializers.ModelSerializer):
             "delivery_at",
             "updated_at",
         ]
+
+    def get_customer_name(self, obj):
+        return obj.deliver_to or obj.customer.name
 
     def get_driver_name(self, obj):
         if not obj.driver:
