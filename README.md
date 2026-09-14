@@ -37,15 +37,18 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py seed_demo
-python manage.py runserver
+python manage.py runserver 127.0.0.1:8080
 ```
 
-Then in a **second** PowerShell window:
+Windows often blocks port 8000 (`Error: You don't have permission to access that port`). Use 8080 and point the web app at it, as in the second-window commands below.
 
 ```powershell
 cd $HOME\SafiRoute\frontend
 npm install
-copy .env.example .env.local
+@"
+NEXT_PUBLIC_API_URL=http://127.0.0.1:8080/api
+NEXT_PUBLIC_API_ORIGIN=http://127.0.0.1:8080
+"@ | Set-Content .env.local
 npm run dev
 ```
 
