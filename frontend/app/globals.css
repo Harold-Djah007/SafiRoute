@@ -1,0 +1,154 @@
+@import url("https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --forest: #0f5c2e;
+  --gold: #c9a227;
+  --cream: #f4efe2;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  color: #1a241c;
+  background:
+    radial-gradient(1200px 500px at 10% -10%, rgba(201, 162, 39, 0.16), transparent 55%),
+    radial-gradient(900px 400px at 110% 0%, rgba(27, 138, 62, 0.12), transparent 50%),
+    #f4efe2;
+}
+
+.ticket {
+  background:
+    linear-gradient(#fbf7ee, #fbf7ee) padding-box,
+    repeating-linear-gradient(
+      90deg,
+      #c9a227 0 8px,
+      transparent 8px 16px
+    ) border-box;
+  border: 2px solid transparent;
+}
+
+.status-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+}
+
+.waybill-pad {
+  background: linear-gradient(180deg, #e7f3fa 0%, #d5ebf5 40%, #cfe6f2 100%);
+  color: #16324a;
+  border: 1px solid #9bbdce;
+  box-shadow:
+    0 1px 0 #fff inset,
+    0 22px 50px rgba(22, 50, 74, 0.18);
+}
+
+.waybill-mark {
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle, transparent 18%, #16324a 19% 24%, transparent 25% 36%, #16324a 37% 42%, transparent 43% 56%, #16324a 57% 62%, transparent 63%);
+  box-shadow: 0 0 0 3px #d5ebf5, 0 0 0 4px #16324a;
+}
+
+.waybill-line {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px dotted #3d6680;
+  border-radius: 0;
+  padding: 0.15rem 0.2rem;
+  width: 100%;
+  color: #102334;
+}
+
+.waybill-line:focus {
+  outline: none;
+  border-bottom-color: #0f5c2e;
+}
+
+.waybill-grid {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.waybill-grid th,
+.waybill-grid td {
+  border: 1px solid #7fa3b6;
+  padding: 0;
+}
+
+.waybill-grid th {
+  background: #b9d7e6;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 6px 8px;
+}
+
+.waybill-grid td input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 7px 8px;
+}
+
+.waybill-grid td input:focus {
+  outline: 2px solid #0f5c2e;
+  outline-offset: -2px;
+}
+
+.tap {
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+.field-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.25rem;
+  padding: 0.55rem 0.75rem calc(0.55rem + env(safe-area-inset-bottom));
+  background: #07150c;
+  color: #f4efe2;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.field-nav a,
+.field-nav button {
+  min-height: 44px;
+}
+
+.field-shell {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@media (min-width: 1024px) {
+  .field-nav {
+    left: 50%;
+    right: auto;
+    width: 32rem;
+    transform: translateX(-50%);
+    border-radius: 1.25rem 1.25rem 0 0;
+  }
+}

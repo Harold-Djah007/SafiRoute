@@ -2,75 +2,158 @@
 
 **Every delivery. Verified.**
 
-SafiRoute is Safisana Ghana’s digital waybill and proof-of-delivery system.
+SafiRoute is Safisana Ghana’s digital waybill and proof-of-delivery system for the Sales department: create, approve, load, dispatch, sign, verify, and archive deliveries — including when drivers are offline.
 
-## Package contents
+Repository: https://github.com/Harold-Djah007/SafiRoute
 
-| Folder       | Description                                      |
-|--------------|--------------------------------------------------|
-| `backend/`   | Django REST API (runnable)                       |
-| `frontend/`  | Next.js web dashboard + public QR verification   |
-| `mobile/`    | Flutter Android-first driver app (scaffold)      |
-| `docs/`      | Full project blueprint                           |
-| `scripts/`   | Helper scripts                                   |
+## What’s in this repo
 
-## Quick start – Backend (API)
+| Path | What it is |
+| --- | --- |
+| `backend/` | Django REST API (runnable locally with SQLite) |
+| `frontend/` | Next.js web dashboard, field (driver) UI, and public QR verification |
+| `mobile/` | Flutter Android-first driver app |
+| `docs/` | Project blueprint |
+| `assets/` | SafiRoute logo and app icon |
+| `scripts/` | One-command API and web starters |
 
-```bash
+## Test run (local)
+
+You need **Python 3.12, 3.13, or 3.14** and **Node 20+**. Flutter is optional.
+
+**Windows (PowerShell)** — you already cloned the repo. Recreate the venv after pulling this branch, because Python 3.14 needs current Pillow wheels:
+
+```powershell
+cd $HOME\SafiRoute
+git pull
+git checkout cursor/safiroute-mvp-cd9e
+
 cd backend
-python3 -m venv venv
-source venv/bin/activate   # Windows: venv\Scripts\activate
+deactivate
+Remove-Item -Recurse -Force .\venv
+py -3 -m venv venv
+.\venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 python manage.py migrate
-python manage.py createsuperuser
-python manage.py runserver
+python manage.py seed_demo
+python manage.py runserver 127.0.0.1:8877
 ```
 
-- API root: http://127.0.0.1:8000/api/
-- Admin:    http://127.0.0.1:8000/admin/
-- Token:    POST http://127.0.0.1:8000/api/auth/token/  `{ "username": "...", "password": "..." }`
+Windows often blocks ports 8000 and 8080. **8877** is the SafiRoute local API port. Keep this window open.
 
-## Quick start – Frontend (Web)
+Then in a **second** PowerShell window (stop the old `npm run dev` first with Ctrl+C):
 
-```bash
+```powershell
+cd $HOME\SafiRoute
+git pull
+
 cd frontend
 npm install
-# optional: create .env.local with NEXT_PUBLIC_API_URL=http://localhost:8000/api
+@"
+NEXT_PUBLIC_API_URL=/api
+NEXT_PUBLIC_API_ORIGIN=http://127.0.0.1:8877
+DJANGO_ORIGIN=http://127.0.0.1:8877
+"@ | Set-Content .env.local
 npm run dev
 ```
 
 Open http://localhost:3000
 
+**macOS / Linux**
+
+```bash
+cd backend
+python3 -m venv venv
+# If that fails on Ubuntu: sudo apt install python3.12-venv
+source venv/bin/activate
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py seed_demo
+python manage.py runserver 127.0.0.1:8877
+```
+
+**Terminal 2 — Web app**
+
+```bash
+cd frontend
+npm install
+cp .env.example .env.local
+npm run dev
+```
+
+Open **http://localhost:3000**
+
+Or from the repo root:
+
+```bash
+./scripts/run-api.sh    # terminal 1
+./scripts/run-web.sh    # terminal 2
+```
+
+### Demo logins
+
+Password for every seeded account: **`safiroute`**
+
+| Username | Use this to… |
+| --- | --- |
+| `sales` | Create and submit waybills |
+| `supervisor` | Approve |
+| `warehouse` | Confirm load and dispatch |
+| `driver` | Complete a field delivery (`/field`) |
+| `finance` | Read-only operations view |
+| `admin` | Everything, plus `/admin/` |
+
+API: http://127.0.0.1:8877/api/  
+Django admin: http://127.0.0.1:8877/admin/  
+Health: http://127.0.0.1:8877/api/health/
+
+### Field-ready driver flow
+
+Sign in as `driver` (password `safiroute`) and open **http://localhost:3000/field**.
+
+1. Tap **Download for offline** while you still have signal. Assigned waybills (loaded / dispatched / in transit) are stored on the phone.
+2. Open a run. Quantities, GPS, photos, and both signatures work with no coverage.
+3. Complete the delivery. If 4G is down, the proof queues on the device and sends when the phone is online again. Replays use the same client UUID so they cannot double-post.
+4. Add the field page to the home screen for a full-screen driver app.
+
+### Suggested click-through
+
+1. Sign in as `sales` → **New waybill** → save draft → **Submit for approval**
+2. Sign in as `supervisor` → open the waybill → **Approve**
+3. Sign in as `warehouse` → enter loaded qty / batch → **Confirm loaded** → assign driver/vehicle → **Dispatch**
+4. Sign in as `driver` → **Field app** → download → open the assignment → sign both pads → **Complete delivery**
+5. Open the verification link on the waybill, or download the branded PDF
+
 ## Mobile (Flutter)
+
+The driver workflow is already testable in the browser at `/field`. To run the native app:
 
 ```bash
 cd mobile
+flutter create . --project-name safiroute_mobile --org org.safisana.safiroute
 flutter pub get
-flutter run
+flutter run --dart-define=SAFIROUTE_API=http://127.0.0.1:8877/api
 ```
 
-(Requires Flutter SDK installed)
+On a physical phone, point `SAFIROUTE_API` at your computer’s LAN IP.
 
-## Key API endpoints
+## Backend tests
 
-| Method | Endpoint                        | Description                    |
-|--------|---------------------------------|--------------------------------|
-| POST   | /api/auth/token/                | Obtain auth token              |
-| GET    | /api/waybills/                  | List waybills (role-filtered)  |
-| POST   | /api/waybills/                  | Create draft waybill           |
-| POST   | /api/waybills/{id}/submit/      | Submit for approval            |
-| POST   | /api/waybills/{id}/approve/     | Approve                        |
-| POST   | /api/waybills/{id}/load/        | Confirm loaded                 |
-| POST   | /api/waybills/{id}/dispatch/    | Dispatch to driver             |
-| POST   | /api/waybills/{id}/complete_delivery/ | Complete PoD (offline OK) |
-| GET    | /api/verify/{token}/            | Public QR verification         |
+```bash
+cd backend
+source venv/bin/activate
+python manage.py test
+```
 
-## Next steps
+## Architecture
 
-1. Obtain a photo/scan of the current paper waybill.
-2. Create a private GitHub repo named `SafiRoute` and push this code.
-3. Continue with Phase 1 process validation from the blueprint.
+Django REST + Next.js + Flutter, as recommended in the blueprint. Local demo uses SQLite so nothing else has to be installed. PostgreSQL, object storage, and Redis workers are the production path (see `docs/Safisana_Digital_Waybill_Project_Blueprint.md`).
 
----
+## Branding
 
-© Safisana Ghana – Internal project
+- `assets/safiroute-logo.png` — wordmark lockup
+- `assets/safiroute-icon.png` — app / favicon mark
+- Palette: forest `#0F5C2E`, gold `#C9A227`, cream `#F4EFE2`
+
+The product name should still undergo a formal trademark and domain check before public release.
