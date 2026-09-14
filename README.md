@@ -19,15 +19,45 @@ Repository: https://github.com/Harold-Djah007/SafiRoute
 
 ## Test run (local)
 
-You need **Python 3.12+** and **Node 20+**. Flutter is optional.
+You need **Python 3.12, 3.13, or 3.14** and **Node 20+**. Flutter is optional.
 
-**Terminal 1 — API**
+**Windows (PowerShell)** — you already cloned the repo. Recreate the venv after pulling this branch, because Python 3.14 needs current Pillow wheels:
+
+```powershell
+cd $HOME\SafiRoute
+git pull
+git checkout cursor/safiroute-mvp-cd9e
+
+cd backend
+deactivate
+Remove-Item -Recurse -Force .\venv
+py -3 -m venv venv
+.\venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py seed_demo
+python manage.py runserver
+```
+
+Then in a **second** PowerShell window:
+
+```powershell
+cd $HOME\SafiRoute\frontend
+npm install
+copy .env.example .env.local
+npm run dev
+```
+
+Open http://localhost:3000
+
+**macOS / Linux**
 
 ```bash
 cd backend
 python3 -m venv venv
 # If that fails on Ubuntu: sudo apt install python3.12-venv
-source venv/bin/activate          # Windows: venv\Scripts\activate
+source venv/bin/activate
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py seed_demo
