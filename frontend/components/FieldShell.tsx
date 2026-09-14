@@ -11,7 +11,7 @@ function FieldShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const search = useSearchParams();
   const tab = search.get("tab") || "";
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => (typeof window === "undefined" ? null : readUser()));
   const [online, setOnline] = useState(true);
   const [queued, setQueued] = useState(0);
   const [syncNote, setSyncNote] = useState("");

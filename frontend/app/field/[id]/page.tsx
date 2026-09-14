@@ -2,7 +2,6 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { FieldShell } from "@/components/FieldShell";
 import { StatusPill } from "@/components/AppShell";
 import { SignaturePad, type SignaturePadHandle } from "@/components/SignaturePad";
 import { api, type Waybill } from "@/lib/api";
@@ -186,27 +185,18 @@ export default function FieldDeliveryPage() {
   }
 
   if (invalidId) {
-    return (
-      <FieldShell>
-        <p>Opening field queue…</p>
-      </FieldShell>
-    );
+    return <p>Opening field queue…</p>;
   }
 
   if (!wb) {
-    return (
-      <FieldShell>
-        <p className="text-base">{error || "Loading assignment…"}</p>
-      </FieldShell>
-    );
+    return <p className="text-base">{error || "Loading assignment…"}</p>;
   }
 
   const address = wb.delivery_address_text || wb.customer_detail?.delivery_address;
   const phone = wb.contact_phone || wb.customer_detail?.phone;
 
   return (
-    <FieldShell>
-      <div className="space-y-4">
+    <div className="space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="font-display text-3xl text-forest-800">{wb.waybill_number}</h1>
@@ -372,7 +362,6 @@ export default function FieldDeliveryPage() {
         >
           {busy ? "Saving…" : outcome === "delivery_failed" ? "Record failed delivery" : "Complete delivery"}
         </button>
-      </div>
-    </FieldShell>
+    </div>
   );
 }

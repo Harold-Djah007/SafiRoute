@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { FieldShell } from "@/components/FieldShell";
 import { StatusPill } from "@/components/AppShell";
 import { type Waybill } from "@/lib/api";
 import { mapsHref, telHref } from "@/lib/format";
@@ -39,6 +38,7 @@ function FieldHomeInner() {
   async function download() {
     setBusy("download");
     setNote("");
+    await loadLocal();
     try {
       const pack = await downloadFieldPack();
       setRows(pack.waybills.filter((row) => ACTIVE.has(row.status)));
@@ -72,7 +72,7 @@ function FieldHomeInner() {
   const queuedIds = useMemo(() => new Set(queue.map((item) => item.waybillId)), [queue]);
 
   return (
-    <FieldShell>
+    <>
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold-600">Driver</p>
       <h1 className="font-display text-4xl text-forest-800">Today&apos;s runs</h1>
       <p className="mt-2 text-base text-ink/75">
@@ -191,20 +191,20 @@ function FieldHomeInner() {
             </article>
           );
         })}
-        {!rows.length && (
+        {!rows.length && busy !== "download" && (
           <div className="rounded-3xl border border-dashed border-forest-800/20 p-6 text-center">
             <p className="font-display text-2xl text-forest-800">No active runs</p>
             <p className="mt-2 text-sm text-ink/70">When warehouse dispatches a waybill to you, tap Download for offline before you leave the plant.</p>
           </div>
         )}
       </div>
-    </FieldShell>
+    </>
   );
 }
 
 export default function FieldHomePage() {
   return (
-    <Suspense fallback={<FieldShell><p>Opening runs…</p></FieldShell>}>
+    <Suspense fallback={<p>Opening runs…</p>}>
       <FieldHomeInner />
     </Suspense>
   );
