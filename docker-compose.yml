@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - media_data:/app/media
+    environment:
+      - DEBUG=True
+      - DJANGO_SECRET_KEY=dev-only-change-in-prod
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
+
+  # Frontend runs with `npm run dev` on host for hot reload
+  # or build a production image later
+
+volumes:
+  media_data:
