@@ -26,6 +26,7 @@ You need **Python 3.12+** and **Node 20+**. Flutter is optional.
 ```bash
 cd backend
 python3 -m venv venv
+# If that fails on Ubuntu: sudo apt install python3.12-venv
 source venv/bin/activate          # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 python manage.py migrate

@@ -56,6 +56,15 @@ def _as_list(value):
     return value
 
 
+def _optional_float(value):
+    if value in (None, ""):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValidationError({"detail": f"Invalid number: {value}"}) from exc
+
+
 def _qty(value, default=None):
     if value is None or value == "":
         return default
@@ -172,6 +181,8 @@ class WaybillViewSet(viewsets.ModelViewSet):
             "customer", "driver", "vehicle", "created_by", "approved_by"
         ).prefetch_related("items", "photos", "audit_logs")
         user = self.request.user
+        if not user.is_authenticated:
+            return qs.none()
         if user.role == User.Role.DRIVER:
             qs = qs.filter(driver=user)
         return qs
@@ -323,8 +334,8 @@ class WaybillViewSet(viewsets.ModelViewSet):
         record_audit(waybill, request.user, "loaded", previous, waybill.status, request=request)
         return Response(WaybillSerializer(waybill, context={"request": request}).data)
 
-    @action(detail=True, methods=["post"])
-    def dispatch(self, request, pk=None):
+    @action(detail=True, methods=["post"], url_path="dispatch")
+    def dispatch_waybill(self, request, pk=None):
         waybill = self.get_object()
         if not can_dispatch(request.user):
             raise PermissionDenied()
@@ -340,9 +351,9 @@ class WaybillViewSet(viewsets.ModelViewSet):
         waybill.driver_phone = request.data.get("driver_phone") or driver.phone
         waybill.status = Waybill.Status.DISPATCHED
         waybill.dispatch_at = timezone.now()
-        waybill.dispatch_lat = request.data.get("lat") or None
-        waybill.dispatch_lng = request.data.get("lng") or None
-        waybill.dispatch_gps_accuracy = request.data.get("gps_accuracy") or None
+        waybill.dispatch_lat = _optional_float(request.data.get("lat"))
+        waybill.dispatch_lng = _optional_float(request.data.get("lng"))
+        waybill.dispatch_gps_accuracy = _optional_float(request.data.get("gps_accuracy"))
         waybill.save()
         record_audit(waybill, request.user, "dispatched", previous, waybill.status, request=request)
         return Response(WaybillSerializer(waybill, context={"request": request}).data)
@@ -375,10 +386,12 @@ class WaybillViewSet(viewsets.ModelViewSet):
                     WaybillSerializer(existing, context={"request": request}).data,
                     status=status.HTTP_200_OK,
                 )
-            if waybill.is_terminal and str(waybill.client_uuid or "") == str(client_uuid):
-                return Response(WaybillSerializer(waybill, context={"request": request}).data)
-
         if waybill.is_terminal:
+            if not waybill.pdf_file:
+                generate_waybill_pdf(waybill)
+                waybill.refresh_from_db()
+            if client_uuid and str(waybill.client_uuid or "") == str(client_uuid):
+                return Response(WaybillSerializer(waybill, context={"request": request}).data)
             raise ValidationError({"detail": "This waybill is already completed."})
 
         _require_transition(
@@ -412,9 +425,9 @@ class WaybillViewSet(viewsets.ModelViewSet):
         waybill.delivery_notes = request.data.get("delivery_notes", "")
         waybill.failure_reason = request.data.get("failure_reason", "")
         waybill.gps_unavailable_reason = request.data.get("gps_unavailable_reason", "")
-        waybill.delivery_lat = request.data.get("lat") or None
-        waybill.delivery_lng = request.data.get("lng") or None
-        waybill.delivery_gps_accuracy = request.data.get("gps_accuracy") or None
+        waybill.delivery_lat = _optional_float(request.data.get("lat"))
+        waybill.delivery_lng = _optional_float(request.data.get("lng"))
+        waybill.delivery_gps_accuracy = _optional_float(request.data.get("gps_accuracy"))
         device_at = request.data.get("device_timestamp")
         waybill.delivery_device_at = parse_datetime(device_at) if device_at else timezone.now()
         waybill.delivery_at = timezone.now()

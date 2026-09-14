@@ -208,8 +208,8 @@ def generate_waybill_pdf(waybill):
     gps = "—"
     if waybill.delivery_lat is not None and waybill.delivery_lng is not None:
         gps = f"{waybill.delivery_lat}, {waybill.delivery_lng}"
-        if waybill.delivery_gps_accuracy:
-            gps += f" (±{waybill.delivery_gps_accuracy:.0f}m)"
+        if waybill.delivery_gps_accuracy not in (None, ""):
+            gps += f" (±{float(waybill.delivery_gps_accuracy):.0f}m)"
     elif waybill.gps_unavailable_reason:
         gps = f"Unavailable — {waybill.gps_unavailable_reason}"
 

@@ -82,7 +82,13 @@ export default function FieldDeliveryPage() {
   }, [wb]);
 
   function canvasBlob(canvas: HTMLCanvasElement | null): Promise<Blob | null> {
-    return new Promise((resolve) => canvas?.toBlob((blob) => resolve(blob), "image/png") || resolve(null));
+    return new Promise((resolve) => {
+      if (!canvas) {
+        resolve(null);
+        return;
+      }
+      canvas.toBlob((blob) => resolve(blob), "image/png");
+    });
   }
 
   async function complete() {

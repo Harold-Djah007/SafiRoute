@@ -72,6 +72,7 @@ class WaybillWorkflowTests(TestCase):
                 "items": [{"id": load.data["items"][0]["id"], "delivered_qty": "10", "rejected_qty": "0"}],
                 "lat": "5.67",
                 "lng": "0.03",
+                "gps_accuracy": "8",
             },
             format="json",
         )
