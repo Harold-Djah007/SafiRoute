@@ -37,17 +37,23 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py seed_demo
-python manage.py runserver 127.0.0.1:8080
+python manage.py runserver 127.0.0.1:8877
 ```
 
-Windows often blocks port 8000 (`Error: You don't have permission to access that port`). Use 8080 and point the web app at it, as in the second-window commands below.
+Windows often blocks ports 8000 and 8080. **8877** is the SafiRoute local API port. Keep this window open.
+
+Then in a **second** PowerShell window (stop the old `npm run dev` first with Ctrl+C):
 
 ```powershell
-cd $HOME\SafiRoute\frontend
+cd $HOME\SafiRoute
+git pull
+
+cd frontend
 npm install
 @"
-NEXT_PUBLIC_API_URL=http://127.0.0.1:8080/api
-NEXT_PUBLIC_API_ORIGIN=http://127.0.0.1:8080
+NEXT_PUBLIC_API_URL=/api
+NEXT_PUBLIC_API_ORIGIN=http://127.0.0.1:8877
+DJANGO_ORIGIN=http://127.0.0.1:8877
 "@ | Set-Content .env.local
 npm run dev
 ```
@@ -64,7 +70,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py seed_demo
-python manage.py runserver
+python manage.py runserver 127.0.0.1:8877
 ```
 
 **Terminal 2 — Web app**

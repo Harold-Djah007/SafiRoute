@@ -107,3 +107,13 @@ class WaybillWorkflowTests(TestCase):
         self._auth(self.driver)
         listing = self.client.get("/api/waybills/")
         self.assertEqual(listing.data["count"], 0)
+
+    def test_login_returns_token(self):
+        res = self.client.post(
+            "/api/auth/login/",
+            {"username": "sales", "password": "safiroute"},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertIn("token", res.data)
+        self.assertEqual(res.data["user"]["username"], "sales")

@@ -1,7 +1,6 @@
-export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
 export const API_ORIGIN =
-  process.env.NEXT_PUBLIC_API_ORIGIN || "http://127.0.0.1:8000";
+  process.env.NEXT_PUBLIC_API_ORIGIN || "http://127.0.0.1:8877";
 
 export type Role =
   | "admin"
@@ -120,8 +119,16 @@ function token() {
 
 export function mediaUrl(path?: string | null) {
   if (!path) return "";
-  if (path.startsWith("http")) return path;
-  return `${API_ORIGIN}${path}`;
+  if (path.startsWith("http")) {
+    try {
+      const parsed = new URL(path);
+      if (parsed.pathname.startsWith("/media/")) return parsed.pathname;
+    } catch {
+      return path;
+    }
+    return path;
+  }
+  return path.startsWith("/") ? path : `${API_ORIGIN}${path}`;
 }
 
 export async function api<T = unknown>(
@@ -137,11 +144,19 @@ export async function api<T = unknown>(
   if (t) headers.set("Authorization", `Token ${t}`);
   const res = await fetch(`${API_URL}${path}`, { ...options, headers });
   if (res.status === 204) return undefined as T;
-  const data = await res.json().catch(() => ({}));
+  const text = await res.text();
+  let data: Record<string, unknown> = {};
+  if (text) {
+    try {
+      data = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      data = {};
+    }
+  }
   if (!res.ok) {
     const detail =
-      data.detail ||
-      (typeof data === "object" ? JSON.stringify(data) : "Request failed");
+      (typeof data.detail === "string" && data.detail) ||
+      `Could not reach the SafiRoute API (${res.status}). Start Django with: python manage.py runserver 127.0.0.1:8877`;
     throw new Error(detail);
   }
   return data as T;

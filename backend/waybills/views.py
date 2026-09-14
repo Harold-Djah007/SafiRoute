@@ -9,7 +9,7 @@ from django.utils.dateparse import parse_datetime
 from django.contrib.auth import authenticate
 from rest_framework import status, viewsets
 from rest_framework.authtoken.models import Token
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action, api_view, authentication_classes, permission_classes
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -85,12 +85,14 @@ def _require_transition(waybill, allowed):
 
 
 @api_view(["GET"])
+@authentication_classes([])
 @permission_classes([AllowAny])
 def health(_request):
     return Response({"ok": True, "service": "SafiRoute", "tagline": "Every delivery. Verified."})
 
 
 @api_view(["POST"])
+@authentication_classes([])
 @permission_classes([AllowAny])
 def login(request):
     user = authenticate(
