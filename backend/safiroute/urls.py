@@ -9,8 +9,10 @@ from waybills.views import health, login, me, verify_waybill
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/health/", health),
+    path("api/health", health),
     path("api/auth/token/", obtain_auth_token),
     path("api/auth/login/", login),
+    path("api/auth/login", login),
     path("api/me/", me),
     path("api/verify/<str:token>/", verify_waybill),
     path("api/", include("waybills.urls")),

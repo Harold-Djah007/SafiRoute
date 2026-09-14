@@ -6,11 +6,9 @@ const django =
 
 const nextConfig = {
   reactStrictMode: true,
+  skipTrailingSlashRedirect: true,
   async rewrites() {
-    return [
-      { source: "/api/:path*", destination: `${django}/api/:path*` },
-      { source: "/media/:path*", destination: `${django}/media/:path*` },
-    ];
+    return [{ source: "/media/:path*", destination: `${django}/media/:path*` }];
   },
 };
 

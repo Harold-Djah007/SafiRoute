@@ -117,3 +117,9 @@ class WaybillWorkflowTests(TestCase):
         self.assertEqual(res.status_code, 200, res.data)
         self.assertIn("token", res.data)
         self.assertEqual(res.data["user"]["username"], "sales")
+        noslash = self.client.post(
+            "/api/auth/login",
+            {"username": "sales", "password": "safiroute"},
+            format="json",
+        )
+        self.assertEqual(noslash.status_code, 200, noslash.data)
