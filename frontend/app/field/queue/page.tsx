@@ -1,7 +1,5 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import FieldHomePage from "../page";
-
-export default function FieldQueuePage() {
-  return <FieldHomePage />;
+export default function FieldQueueRedirect() {
+  redirect("/field?tab=sync");
 }
