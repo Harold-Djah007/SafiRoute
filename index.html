@@ -3,42 +3,69 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#075b38" />
+    <meta name="theme-color" content="#04150c" />
     <meta name="description" content="Offline-first digital waybills for Safisana Ghana" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./assets/safiroute-icon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./styles.css" />
     <title>SafiRoute</title>
   </head>
-  <body>
+  <body data-stage="setup">
+    <div class="atmosphere" aria-hidden="true">
+      <div class="aurora"></div>
+      <div class="orb orb-lime"></div>
+      <div class="orb orb-gold"></div>
+      <div class="orb orb-forest"></div>
+      <div class="orb orb-warm"></div>
+      <div class="grain"></div>
+      <canvas id="atmosphereCanvas" class="atmosphere-canvas"></canvas>
+    </div>
+
     <section id="lockScreen" class="gate" hidden>
-      <img src="./assets/safiroute-logo.png" alt="SafiRoute" class="gate-logo" />
-      <p class="gate-tag">Every delivery. Verified.</p>
-      <p id="lockName" class="gate-name"></p>
-      <p id="lockRole" class="gate-role"></p>
-      <form id="unlockForm" class="gate-form">
-        <label id="pinUnlockLabel">Device PIN<input id="unlockPin" type="password" inputmode="numeric" maxlength="4" autocomplete="off" /></label>
-        <p id="lockError" class="gate-error" hidden></p>
-        <button class="primary" type="submit">Unlock</button>
-      </form>
+      <div class="gate-card">
+        <div class="wordmark">
+          <img src="./assets/safiroute-icon.svg" alt="" width="48" height="48" />
+          <span class="wordmark-text">
+            <strong>SafiRoute</strong>
+            <em>Every delivery. Verified.</em>
+          </span>
+        </div>
+        <p id="lockName" class="gate-name"></p>
+        <p id="lockRole" class="gate-role"></p>
+        <form id="unlockForm" class="gate-form">
+          <label id="pinUnlockLabel">Device PIN<input id="unlockPin" type="password" inputmode="numeric" maxlength="4" autocomplete="off" /></label>
+          <p id="lockError" class="gate-error" hidden></p>
+          <button class="primary" type="submit">Unlock pad</button>
+        </form>
+      </div>
     </section>
 
     <section id="setupScreen" class="gate setup" hidden>
-      <img src="./assets/safiroute-logo.png" alt="SafiRoute" class="gate-logo" />
-      <p class="gate-tag">Safisana Ghana · Sales waybill</p>
-      <h1>Sales person’s name</h1>
-      <p class="gate-copy">This is not a login. There is no password and no Safisana account yet. Type your name so Authorised by is already filled when a customer buys compost.</p>
-      <form id="setupForm" class="stack-form">
-        <label>Your name<input id="setupName" name="operatorName" required autocomplete="name" placeholder="e.g. Ama Boateng" /></label>
-        <button class="primary" type="submit">Open the pad</button>
-      </form>
+      <div class="gate-card">
+        <div class="wordmark">
+          <img src="./assets/safiroute-icon.svg" alt="" width="48" height="48" />
+          <span class="wordmark-text">
+            <strong>SafiRoute</strong>
+            <em>Safisana Ghana · Sales waybill</em>
+          </span>
+        </div>
+        <h1>Your name on the pad</h1>
+        <p class="gate-copy">This is not a login. There is no password and no Safisana account yet. Type your name so Authorised by is already filled when a customer buys compost.</p>
+        <form id="setupForm" class="stack-form">
+          <label>Your name<input id="setupName" name="operatorName" required autocomplete="name" placeholder="e.g. Ama Boateng" /></label>
+          <button class="primary" type="submit">Open the pad</button>
+        </form>
+      </div>
     </section>
 
     <div id="appShell" hidden>
       <header class="topbar">
-        <div class="brand-block">
-          <img src="./assets/safiroute-logo.png" alt="SafiRoute" class="brand" />
-          <p class="brand-kicker">Sales waybill</p>
+        <div class="wordmark wordmark-light">
+          <img src="./assets/safiroute-icon.svg" alt="" width="36" height="36" />
+          <span class="wordmark-text">
+            <strong>SafiRoute</strong>
+            <em>Sales waybill</em>
+          </span>
         </div>
         <div class="topbar-meta">
           <p id="headerOperator" class="operator-name"></p>
@@ -53,7 +80,7 @@
             <h1 id="homeTitle">Waybills</h1>
             <p id="homeSubtitle" class="lede">Saved on this device.</p>
           </div>
-          <button id="newWaybillButton" class="primary">+ New waybill</button>
+          <button id="newWaybillButton" class="primary glow">+ New waybill</button>
         </section>
 
         <p class="howto">When a customer buys compost, Sales fills this pad. Then Sales, Dispatch, and the customer each sign their line — the same parties as the paper book.</p>
@@ -78,7 +105,14 @@
             </div>
           </div>
           <div id="emptyState" class="empty">
-            <div class="empty-icon">✓</div>
+            <div class="empty-icon" aria-hidden="true">
+              <svg viewBox="0 0 48 48" width="28" height="28" fill="none">
+                <rect x="9" y="6" width="30" height="36" rx="4" stroke="currentColor" stroke-width="2.2"/>
+                <path d="M16 16h16M16 23h16M16 30h10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                <circle cx="34" cy="34" r="9" fill="#83c900"/>
+                <path d="m31 34 2.2 2.2 4.4-5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
             <h3>No waybills yet</h3>
             <p>Open a pad when a customer comes to buy compost. Sales, Dispatch, and the customer sign on this sheet.</p>
           </div>
@@ -117,8 +151,20 @@
       </main>
 
       <nav id="appNav" class="app-nav" aria-label="App">
-        <button type="button" class="nav-btn active" data-view="waybills">Waybills</button>
-        <button type="button" class="nav-btn" data-view="settings">Settings</button>
+        <button type="button" class="nav-btn active" data-view="waybills">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <rect x="5" y="3.5" width="14" height="17" rx="2"/>
+            <path d="M8.5 8.5h7M8.5 12.5h7M8.5 16.5h4"/>
+          </svg>
+          Waybills
+        </button>
+        <button type="button" class="nav-btn" data-view="settings">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 4.5v1.4M12 18.1V19.5M4.5 12h1.4M18.1 12H19.5M6.4 6.4l1 1M16.6 16.6l1 1M17.6 6.4l-1 1M7.4 16.6l-1 1"/>
+          </svg>
+          Settings
+        </button>
       </nav>
     </div>
 

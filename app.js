@@ -55,10 +55,15 @@ function renderChrome() {
   $("#settingsName").value = profile.operatorName;
 }
 
+function prefersReducedMotion() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 function showGate(name) {
   $("#setupScreen").hidden = name !== "setup";
   $("#lockScreen").hidden = name !== "lock";
   $("#appShell").hidden = name !== "app";
+  document.body.dataset.stage = name;
 }
 
 function unlockSession() {
@@ -73,16 +78,89 @@ async function enterApp() {
   unlockSession();
   showGate("app");
   renderChrome();
-  setView("waybills");
+  setView("waybills", { instant: true });
   await refreshList();
 }
 
-function setView(name) {
+function applyView(name) {
   $("#waybillsView").hidden = name !== "waybills";
   $("#settingsView").hidden = name !== "settings";
   document.querySelectorAll(".nav-btn").forEach((button) => {
     button.classList.toggle("active", button.dataset.view === name);
   });
+}
+
+function currentView() {
+  return $("#settingsView")?.hidden === false ? "settings" : "waybills";
+}
+
+function setView(name, { instant = false } = {}) {
+  const from = currentView();
+  if (from === name) {
+    applyView(name);
+    return;
+  }
+  const dir = name === "settings" ? "forward" : "back";
+  document.documentElement.dataset.dir = dir;
+  if (instant || prefersReducedMotion()) {
+    applyView(name);
+    return;
+  }
+  if (typeof document.startViewTransition === "function") {
+    document.startViewTransition(() => applyView(name));
+    return;
+  }
+  const outgoing = from === "settings" ? $("#settingsView") : $("#waybillsView");
+  const incoming = name === "settings" ? $("#settingsView") : $("#waybillsView");
+  outgoing.classList.add(`leave-${dir}`);
+  outgoing.addEventListener("animationend", () => {
+    outgoing.classList.remove(`leave-${dir}`);
+    applyView(name);
+    incoming.classList.add(`enter-${dir}`);
+    incoming.addEventListener("animationend", () => incoming.classList.remove(`enter-${dir}`), { once: true });
+  }, { once: true });
+}
+
+function startAtmosphere() {
+  const canvas = $("#atmosphereCanvas");
+  if (!canvas || prefersReducedMotion()) return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  const particles = Array.from({ length: 46 }, () => ({
+    x: Math.random(),
+    y: Math.random(),
+    r: Math.random() * 1.7 + 0.35,
+    s: Math.random() * 0.00032 + 0.0001,
+    a: Math.random() * 0.42 + 0.12,
+    gold: Math.random() > 0.42
+  }));
+  const resize = () => {
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.floor(window.innerWidth * ratio);
+    canvas.height = Math.floor(window.innerHeight * ratio);
+  };
+  const tick = () => {
+    const { width: w, height: h } = canvas;
+    ctx.clearRect(0, 0, w, h);
+    for (const particle of particles) {
+      particle.y -= particle.s;
+      particle.x += Math.sin(particle.y * 14) * 0.00016;
+      if (particle.y < -0.02) {
+        particle.y = 1.02;
+        particle.x = Math.random();
+      }
+      ctx.beginPath();
+      ctx.fillStyle = particle.gold
+        ? `rgba(255, 195, 24, ${particle.a})`
+        : `rgba(210, 255, 176, ${particle.a * 0.72})`;
+      ctx.arc(particle.x * w, particle.y * h, particle.r * (w / window.innerWidth), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    requestAnimationFrame(tick);
+  };
+  resize();
+  window.addEventListener("resize", resize);
+  requestAnimationFrame(tick);
 }
 
 function setConnectionStatus() {
@@ -392,8 +470,9 @@ async function refreshList() {
   $("#emptyState p").textContent = items.length ? "Try All to see every pad on this phone." : "Open a pad when a customer comes to buy compost. Sales, Dispatch, and the customer sign on this sheet.";
   const list = $("#waybillList");
   list.replaceChildren();
-  for (const item of visible) {
+  visible.forEach((item, index) => {
     const card = $("#waybillTemplate").content.cloneNode(true);
+    card.querySelector(".waybill-card").style.setProperty("--i", String(index));
     card.querySelector('[data-field="number"]').textContent = item.number;
     card.querySelector('[data-field="customerName"]').textContent = item.customerName || "Deliver to not entered";
     const status = card.querySelector('[data-field="status"]');
@@ -408,7 +487,7 @@ async function refreshList() {
       dialog.showModal();
     });
     list.append(card);
-  }
+  });
 }
 
 $("#newWaybillButton").addEventListener("click", () => {
@@ -547,6 +626,7 @@ $("#unlockForm").addEventListener("submit", async (event) => {
 });
 
 setConnectionStatus();
+startAtmosphere();
 profile = await getProfile();
 if (!profile?.operatorName) {
   showGate("setup");

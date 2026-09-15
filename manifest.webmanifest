@@ -4,8 +4,8 @@
   "description": "Offline-first digital waybills and proof of delivery for Safisana Ghana.",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#f4f7f2",
-  "theme_color": "#075b38",
+  "background_color": "#04150c",
+  "theme_color": "#04150c",
   "orientation": "portrait-primary",
   "icons": [
     {
