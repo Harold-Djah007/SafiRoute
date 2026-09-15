@@ -1,4 +1,4 @@
-import { createEmptyWaybill, summarizeWaybills, UNITS, validateWaybill } from "./model.js";
+import { createEmptyWaybill, firstFilledItem, normalizeItems, summarizeWaybills, validateWaybill } from "./model.js";
 import { deleteWaybill, getWaybill, listWaybills, saveWaybill } from "./storage.js";
 
 const state = { active: null, persisted: false, signatureDirty: false, signaturePresent: false };
@@ -13,6 +13,19 @@ let autosaveTimer = null;
 function $(selector) { return document.querySelector(selector); }
 function field(name) { return form.elements.namedItem(name); }
 
+const PAD_FIELDS = [
+  "customerName",
+  "contactName",
+  "customerPhone",
+  "deliveryAddress",
+  "documentDate",
+  "authorisedBy",
+  "authorisedRemarks",
+  "driverName",
+  "vehicleNumber",
+  "receivedBy"
+];
+
 function setConnectionStatus() {
   const online = navigator.onLine;
   const badge = $("#connectionBadge");
@@ -24,25 +37,62 @@ function formatDate(iso) {
   return new Intl.DateTimeFormat("en-GH", { dateStyle: "medium", timeStyle: "short" }).format(new Date(iso));
 }
 
+function readItems() {
+  return [...document.querySelectorAll("#itemRows tr")].map((row) => ({
+    description: row.querySelector('[data-item="description"]').value.trim(),
+    qty: row.querySelector('[data-item="qty"]').value,
+    remarks: row.querySelector('[data-item="remarks"]').value.trim()
+  }));
+}
+
+function renderItems(items, completed = false) {
+  const body = $("#itemRows");
+  const template = $("#itemRowTemplate");
+  body.replaceChildren();
+  for (const item of items) {
+    const row = template.content.cloneNode(true);
+    row.querySelector('[data-item="description"]').value = item.description || "";
+    row.querySelector('[data-item="qty"]').value = item.qty || "";
+    row.querySelector('[data-item="remarks"]').value = item.remarks || "";
+    body.append(row);
+  }
+  body.querySelectorAll("input").forEach((element) => { element.disabled = completed; });
+}
+
+function addItemRow() {
+  if (state.active?.status === "completed") return;
+  const row = $("#itemRowTemplate").content.cloneNode(true);
+  $("#itemRows").append(row);
+  const description = $("#itemRows tr:last-child [data-item='description']");
+  description?.focus();
+  scheduleAutosave();
+}
+
 function readForm() {
   const now = new Date().toISOString();
-  return {
+  const items = readItems();
+  const waybill = {
     ...state.active,
     customerName: field("customerName").value.trim(),
+    contactName: field("contactName").value.trim(),
     customerPhone: field("customerPhone").value.trim(),
     deliveryAddress: field("deliveryAddress").value.trim(),
-    orderReference: field("orderReference").value.trim(),
-    productName: field("productName").value.trim(),
-    quantity: field("quantity").value,
-    unit: field("unit").value,
+    documentDate: field("documentDate").value,
+    authorisedBy: field("authorisedBy").value.trim(),
+    authorisedRemarks: field("authorisedRemarks").value.trim(),
     driverName: field("driverName").value.trim(),
     vehicleNumber: field("vehicleNumber").value.trim().toUpperCase(),
-    notes: field("notes").value.trim(),
+    receivedBy: field("receivedBy").value.trim(),
+    items,
     customerSignature: state.signatureDirty
       ? (state.signaturePresent ? canvas.toDataURL("image/png") : null)
       : state.active.customerSignature,
     updatedAt: now
   };
+  const line = firstFilledItem(waybill);
+  waybill.productName = line?.description?.trim() || "";
+  waybill.quantity = line?.qty || "";
+  return waybill;
 }
 
 function populateForm(waybill, persisted = false) {
@@ -51,15 +101,17 @@ function populateForm(waybill, persisted = false) {
   state.signatureDirty = false;
   state.signaturePresent = Boolean(waybill.customerSignature);
   form.reset();
-  for (const name of ["customerName", "customerPhone", "deliveryAddress", "orderReference", "productName", "quantity", "unit", "driverName", "vehicleNumber", "notes"]) {
+  for (const name of PAD_FIELDS) {
     field(name).value = waybill[name] ?? "";
   }
+  renderItems(normalizeItems(waybill), waybill.status === "completed");
   $("#dialogTitle").textContent = waybill.status === "completed" ? "Completed delivery" : waybill.createdAt === waybill.updatedAt ? "New waybill" : "Edit waybill";
   $("#waybillNumber").textContent = waybill.number;
   const completed = waybill.status === "completed";
   form.querySelectorAll("input, textarea, select").forEach((element) => { element.disabled = completed; });
   $("#gpsButton").hidden = completed;
   $("#clearSignatureButton").hidden = completed;
+  $("#addLineButton").hidden = completed;
   canvas.style.pointerEvents = completed ? "none" : "";
   $("#saveDraftButton").hidden = completed;
   $("#completeButton").hidden = completed;
@@ -92,15 +144,20 @@ function clearErrors() {
   form.querySelectorAll(".invalid").forEach((element) => element.classList.remove("invalid"));
 }
 
+function errorTarget(name) {
+  if (name === "productName") return document.querySelector('[data-item="description"]');
+  if (name === "quantity") return document.querySelector('[data-item="qty"]');
+  return field(name);
+}
+
 function showErrors(errors) {
   clearErrors();
   const firstName = Object.keys(errors)[0];
   for (const name of Object.keys(errors)) {
-    const element = field(name);
-    if (element) element.classList.add("invalid");
+    errorTarget(name)?.classList.add("invalid");
   }
   showNotice(Object.values(errors).join(" "));
-  field(firstName)?.focus();
+  errorTarget(firstName)?.focus();
 }
 
 async function persist(status) {
@@ -119,20 +176,21 @@ async function persist(status) {
 }
 
 function hasDraftContent(waybill) {
+  const lineFilled = (waybill.items || []).some((item) => item.description?.trim() || item.qty || item.remarks?.trim());
   return [
     waybill.customerName,
+    waybill.contactName,
     waybill.customerPhone,
     waybill.deliveryAddress,
-    waybill.orderReference,
-    waybill.productName,
-    waybill.quantity,
+    waybill.authorisedBy,
+    waybill.authorisedRemarks,
     waybill.driverName,
     waybill.vehicleNumber,
-    waybill.notes,
+    waybill.receivedBy,
     waybill.customerSignature,
     waybill.photo,
     waybill.latitude
-  ].some((value) => value !== null && String(value).trim() !== "");
+  ].some((value) => value !== null && String(value).trim() !== "") || lineFilled;
 }
 
 async function autosaveDraft() {
@@ -154,6 +212,14 @@ function scheduleAutosave() {
   autosaveTimer = setTimeout(() => autosaveDraft().catch((error) => showNotice(`Device save failed: ${error.message}`)), 600);
 }
 
+function productSummary(item) {
+  const line = firstFilledItem(item);
+  const description = line?.description || item.productName;
+  const qty = line?.qty || item.quantity;
+  if (!description) return "Not entered";
+  return qty ? `${description} · ${qty}` : description;
+}
+
 async function refreshList() {
   const items = await listWaybills();
   const summary = summarizeWaybills(items);
@@ -167,11 +233,11 @@ async function refreshList() {
   for (const item of items) {
     const card = $("#waybillTemplate").content.cloneNode(true);
     card.querySelector('[data-field="number"]').textContent = item.number;
-    card.querySelector('[data-field="customerName"]').textContent = item.customerName || "Unnamed customer";
+    card.querySelector('[data-field="customerName"]').textContent = item.customerName || "Deliver to not entered";
     const status = card.querySelector('[data-field="status"]');
     status.textContent = item.status;
     status.classList.toggle("draft", item.status === "draft");
-    card.querySelector('[data-field="product"]').textContent = item.productName ? `${item.productName} · ${item.quantity || "—"} ${item.unit}` : "Not entered";
+    card.querySelector('[data-field="product"]').textContent = productSummary(item);
     card.querySelector('[data-field="vehicle"]').textContent = item.vehicleNumber || "Not assigned";
     card.querySelector('[data-field="updated"]').textContent = formatDate(item.updatedAt);
     card.querySelector('[data-field="sync"]').textContent = item.syncStatus === "pending" ? "Pending server" : "Device only";
@@ -188,7 +254,7 @@ function clearCanvas(markDirty = false) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.lineWidth = 5;
-  ctx.strokeStyle = "#123c29";
+  ctx.strokeStyle = "#16324a";
   state.signatureDirty = markDirty;
   state.signaturePresent = false;
 }
@@ -234,6 +300,7 @@ $("#clearSignatureButton").addEventListener("click", () => {
   clearCanvas(true);
   scheduleAutosave();
 });
+$("#addLineButton").addEventListener("click", addItemRow);
 $("#saveDraftButton").addEventListener("click", () => persist("draft"));
 $("#completeButton").addEventListener("click", () => persist("completed"));
 $("#deleteButton").addEventListener("click", async () => {
@@ -287,7 +354,6 @@ $("#exportButton").addEventListener("click", async () => {
   URL.revokeObjectURL(url);
 });
 
-for (const unit of UNITS) field("unit").add(new Option(unit, unit));
 form.addEventListener("submit", (event) => event.preventDefault());
 form.addEventListener("input", scheduleAutosave);
 window.addEventListener("online", setConnectionStatus);

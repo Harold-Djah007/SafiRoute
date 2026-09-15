@@ -28,3 +28,19 @@ test("main document exposes the offline form controls", () => {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
 });
+
+test("waybill dialog follows the Safisana paper pad", () => {
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  for (const phrase of [
+    "WAYBILL",
+    "Deliver to",
+    "Delivery Contact Name",
+    "Description",
+    "Authorised by",
+    "Dispatched by",
+    "I certify that I have received the above items.",
+    "Received by"
+  ]) {
+    assert.match(html, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+});

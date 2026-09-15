@@ -21,7 +21,7 @@
         <div>
           <p class="eyebrow">SALES DELIVERY OPERATIONS</p>
           <h1>Waybills that keep working.</h1>
-          <p>Create and complete delivery records even when the network disappears.</p>
+          <p>The same Safisana pad as the paper book — filled on the phone, even when the network disappears.</p>
         </div>
         <button id="newWaybillButton" class="primary">+ New waybill</button>
       </section>
@@ -52,56 +52,89 @@
 
     <dialog id="waybillDialog">
       <form id="waybillForm" method="dialog">
-        <div class="dialog-heading">
-          <div>
-            <p class="eyebrow">OFFLINE-SAFE FORM</p>
-            <h2 id="dialogTitle">New waybill</h2>
-            <p id="waybillNumber" class="waybill-number"></p>
-          </div>
+        <div class="pad-toolbar">
+          <p id="dialogTitle" class="pad-toolbar-title">New waybill</p>
           <button type="button" id="closeDialogButton" class="icon-button" aria-label="Close">×</button>
         </div>
-
         <div id="formNotice" class="notice" hidden></div>
 
-        <fieldset>
-          <legend>Customer and order</legend>
-          <label>Customer name <span>*</span><input name="customerName" autocomplete="organization" /></label>
-          <label>Customer phone<input name="customerPhone" inputmode="tel" autocomplete="tel" /></label>
-          <label class="wide">Delivery address <span>*</span><textarea name="deliveryAddress" rows="2"></textarea></label>
-          <label class="wide">Order or invoice reference<input name="orderReference" /></label>
-        </fieldset>
-
-        <fieldset>
-          <legend>Product</legend>
-          <label class="wide">Product name <span>*</span><input name="productName" /></label>
-          <label>Quantity <span>*</span><input name="quantity" type="number" min="0.01" step="0.01" inputmode="decimal" /></label>
-          <label>Unit<select name="unit"></select></label>
-        </fieldset>
-
-        <fieldset>
-          <legend>Transport</legend>
-          <label>Driver name <span>*</span><input name="driverName" autocomplete="name" /></label>
-          <label>Vehicle number <span>*</span><input name="vehicleNumber" autocapitalize="characters" /></label>
-          <label class="wide">Delivery notes<textarea name="notes" rows="3"></textarea></label>
-        </fieldset>
-
-        <fieldset>
-          <legend>Proof of delivery</legend>
-          <div class="wide evidence-row">
-            <button type="button" id="gpsButton" class="secondary">Capture GPS</button>
-            <span id="gpsStatus">No location captured</span>
-          </div>
-          <label class="wide">Delivery photo<input id="photoInput" name="photoInput" type="file" accept="image/*" capture="environment" /></label>
-          <img id="photoPreview" class="photo-preview" alt="Delivery evidence preview" hidden />
-          <div class="wide signature-block">
-            <div class="signature-heading">
-              <label>Customer signature <span>*</span></label>
-              <button type="button" id="clearSignatureButton" class="text-button">Clear</button>
+        <article class="waybill-pad">
+          <header class="pad-header">
+            <div class="pad-brand">
+              <div class="waybill-mark" aria-hidden="true"></div>
+              <div>
+                <p class="pad-safisana">Safisana</p>
+                <p class="pad-title">WAYBILL</p>
+              </div>
             </div>
-            <canvas id="signatureCanvas" width="800" height="260" aria-label="Customer signature pad"></canvas>
-            <p>Ask the customer to sign above using a finger or mouse.</p>
+            <div class="pad-number">
+              <p>No.</p>
+              <p id="waybillNumber" class="pad-number-value"></p>
+            </div>
+            <address class="pad-address">
+              <b>Safisana Ghana Limited</b><br />
+              P.O. Box CT 8312, Cantonments<br />
+              Accra, Ghana<br />
+              +233 (302) 972380<br />
+              +233 (302) 972378<br />
+              invoice-gh@safisana.org<br />
+              www.safisana.org
+            </address>
+          </header>
+
+          <div class="pad-fields">
+            <label><span>Deliver to:</span><input name="customerName" class="waybill-line" autocomplete="organization" /></label>
+            <label><span>Date:</span><input name="documentDate" class="waybill-line" type="date" /></label>
+            <label><span>Delivery Contact Name:</span><input name="contactName" class="waybill-line" autocomplete="name" /></label>
+            <label><span>Contact Phone:</span><input name="customerPhone" class="waybill-line" inputmode="tel" autocomplete="tel" /></label>
+            <label class="wide"><span>Address:</span><input name="deliveryAddress" class="waybill-line" /></label>
           </div>
-        </fieldset>
+
+          <table class="waybill-grid">
+            <thead>
+              <tr>
+                <th class="col-desc">Description</th>
+                <th class="col-qty">Qty</th>
+                <th>Remarks</th>
+              </tr>
+            </thead>
+            <tbody id="itemRows"></tbody>
+          </table>
+          <button type="button" id="addLineButton" class="text-button add-line">Add another line</button>
+
+          <div class="pad-footer">
+            <div class="pad-col">
+              <label><span>Authorised by:</span><input name="authorisedBy" class="waybill-line" /></label>
+              <p>Signature: <span class="dots"></span></p>
+              <p>Date: <span class="dots short"></span></p>
+              <label><span>Remarks:</span><input name="authorisedRemarks" class="waybill-line" /></label>
+            </div>
+            <div class="pad-col">
+              <label><span>Dispatched by:</span><input name="driverName" class="waybill-line" autocomplete="name" /></label>
+              <label><span>Vehicle:</span><input name="vehicleNumber" class="waybill-line" autocapitalize="characters" /></label>
+              <p>Signature: <span class="dots"></span></p>
+              <p>Date: <span class="dots short"></span></p>
+              <p class="certify">I certify that I have received the above items.</p>
+              <label><span>Received by:</span><input name="receivedBy" class="waybill-line" /></label>
+              <div class="signature-heading">
+                <span>Signature:</span>
+                <button type="button" id="clearSignatureButton" class="text-button">Clear</button>
+              </div>
+              <canvas id="signatureCanvas" width="800" height="260" aria-label="Customer signature pad"></canvas>
+              <p>Date: <span class="dots short"></span></p>
+            </div>
+          </div>
+
+          <div class="pad-evidence">
+            <p class="pad-evidence-label">Field proof (kept on this phone)</p>
+            <div class="evidence-row">
+              <button type="button" id="gpsButton" class="secondary">Capture GPS</button>
+              <span id="gpsStatus">No location captured</span>
+            </div>
+            <label class="wide photo-label">Delivery photo<input id="photoInput" name="photoInput" type="file" accept="image/*" capture="environment" /></label>
+            <img id="photoPreview" class="photo-preview" alt="Delivery evidence preview" hidden />
+          </div>
+        </article>
 
         <div class="form-actions">
           <button type="button" id="deleteButton" class="danger" hidden>Delete</button>
@@ -112,6 +145,14 @@
       </form>
     </dialog>
 
+    <template id="itemRowTemplate">
+      <tr>
+        <td><input data-item="description" placeholder="e.g. Fortifer Organic Fertilizer 50kg" /></td>
+        <td><input data-item="qty" type="number" min="0" step="0.01" inputmode="decimal" /></td>
+        <td><input data-item="remarks" /></td>
+      </tr>
+    </template>
+
     <template id="waybillTemplate">
       <article class="waybill-card">
         <div class="card-top">
@@ -119,7 +160,7 @@
           <span data-field="status" class="status"></span>
         </div>
         <dl>
-          <div><dt>Product</dt><dd data-field="product"></dd></div>
+          <div><dt>Description</dt><dd data-field="product"></dd></div>
           <div><dt>Vehicle</dt><dd data-field="vehicle"></dd></div>
           <div><dt>Updated</dt><dd data-field="updated"></dd></div>
           <div><dt>Sync</dt><dd data-field="sync"></dd></div>

@@ -10,6 +10,7 @@ SafiRoute is Safisana Ghana’s digital waybill and proof-of-delivery system. Th
 - Offline app loading through a service worker
 - Device-local IndexedDB storage
 - Automatic draft saving while you type (“Saved on this device.”)
+- The **same Safisana paper pad** as the NCR book: Deliver to, Date, Contact, Address, Description / Qty / Remarks, Authorised by, Dispatched by, Received by
 - Draft and completed waybill workflows
 - Customer, product, driver, and vehicle information
 - GPS capture with accuracy and timestamp
