@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#075b38" />
+    <meta name="description" content="Offline-first digital waybills for Safisana Ghana" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./assets/safiroute-icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css" />
+    <title>SafiRoute</title>
+  </head>
+  <body>
+    <header class="topbar">
+      <img src="./assets/safiroute-logo.png" alt="SafiRoute" class="brand" />
+      <div id="connectionBadge" class="connection" aria-live="polite">Checking connection…</div>
+    </header>
+
+    <main class="shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">SALES DELIVERY OPERATIONS</p>
+          <h1>Waybills that keep working.</h1>
+          <p>Create and complete delivery records even when the network disappears.</p>
+        </div>
+        <button id="newWaybillButton" class="primary">+ New waybill</button>
+      </section>
+
+      <section class="summary" aria-label="Waybill summary">
+        <article><strong id="totalCount">0</strong><span>Total</span></article>
+        <article><strong id="draftCount">0</strong><span>Drafts</span></article>
+        <article><strong id="completedCount">0</strong><span>Completed</span></article>
+        <article><strong id="pendingCount">0</strong><span>Awaiting sync</span></article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">ON THIS DEVICE</p>
+            <h2>Saved waybills</h2>
+          </div>
+          <button id="exportButton" class="secondary">Export backup</button>
+        </div>
+        <div id="emptyState" class="empty">
+          <div class="empty-icon">✓</div>
+          <h3>No waybills yet</h3>
+          <p>Your offline drafts and completed deliveries will appear here.</p>
+        </div>
+        <div id="waybillList" class="waybill-list"></div>
+      </section>
+    </main>
+
+    <dialog id="waybillDialog">
+      <form id="waybillForm" method="dialog">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow">OFFLINE-SAFE FORM</p>
+            <h2 id="dialogTitle">New waybill</h2>
+            <p id="waybillNumber" class="waybill-number"></p>
+          </div>
+          <button type="button" id="closeDialogButton" class="icon-button" aria-label="Close">×</button>
+        </div>
+
+        <div id="formNotice" class="notice" hidden></div>
+
+        <fieldset>
+          <legend>Customer and order</legend>
+          <label>Customer name <span>*</span><input name="customerName" autocomplete="organization" /></label>
+          <label>Customer phone<input name="customerPhone" inputmode="tel" autocomplete="tel" /></label>
+          <label class="wide">Delivery address <span>*</span><textarea name="deliveryAddress" rows="2"></textarea></label>
+          <label class="wide">Order or invoice reference<input name="orderReference" /></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Product</legend>
+          <label class="wide">Product name <span>*</span><input name="productName" /></label>
+          <label>Quantity <span>*</span><input name="quantity" type="number" min="0.01" step="0.01" inputmode="decimal" /></label>
+          <label>Unit<select name="unit"></select></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Transport</legend>
+          <label>Driver name <span>*</span><input name="driverName" autocomplete="name" /></label>
+          <label>Vehicle number <span>*</span><input name="vehicleNumber" autocapitalize="characters" /></label>
+          <label class="wide">Delivery notes<textarea name="notes" rows="3"></textarea></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Proof of delivery</legend>
+          <div class="wide evidence-row">
+            <button type="button" id="gpsButton" class="secondary">Capture GPS</button>
+            <span id="gpsStatus">No location captured</span>
+          </div>
+          <label class="wide">Delivery photo<input id="photoInput" name="photoInput" type="file" accept="image/*" capture="environment" /></label>
+          <img id="photoPreview" class="photo-preview" alt="Delivery evidence preview" hidden />
+          <div class="wide signature-block">
+            <div class="signature-heading">
+              <label>Customer signature <span>*</span></label>
+              <button type="button" id="clearSignatureButton" class="text-button">Clear</button>
+            </div>
+            <canvas id="signatureCanvas" width="800" height="260" aria-label="Customer signature pad"></canvas>
+            <p>Ask the customer to sign above using a finger or mouse.</p>
+          </div>
+        </fieldset>
+
+        <div class="form-actions">
+          <button type="button" id="deleteButton" class="danger" hidden>Delete</button>
+          <span class="spacer"></span>
+          <button type="button" id="saveDraftButton" class="secondary">Save draft</button>
+          <button type="button" id="completeButton" class="primary">Complete delivery</button>
+        </div>
+      </form>
+    </dialog>
+
+    <template id="waybillTemplate">
+      <article class="waybill-card">
+        <div class="card-top">
+          <div><strong data-field="number"></strong><span data-field="customerName"></span></div>
+          <span data-field="status" class="status"></span>
+        </div>
+        <dl>
+          <div><dt>Product</dt><dd data-field="product"></dd></div>
+          <div><dt>Vehicle</dt><dd data-field="vehicle"></dd></div>
+          <div><dt>Updated</dt><dd data-field="updated"></dd></div>
+          <div><dt>Sync</dt><dd data-field="sync"></dd></div>
+        </dl>
+        <button class="card-action">Open</button>
+      </article>
+    </template>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

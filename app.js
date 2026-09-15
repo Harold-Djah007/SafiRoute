@@ -1,0 +1,300 @@
+import { createEmptyWaybill, summarizeWaybills, UNITS, validateWaybill } from "./model.js";
+import { deleteWaybill, getWaybill, listWaybills, saveWaybill } from "./storage.js";
+
+const state = { active: null, persisted: false, signatureDirty: false, signaturePresent: false };
+const dialog = document.querySelector("#waybillDialog");
+const form = document.querySelector("#waybillForm");
+const canvas = document.querySelector("#signatureCanvas");
+const ctx = canvas.getContext("2d");
+const photoPreview = document.querySelector("#photoPreview");
+let drawing = false;
+let autosaveTimer = null;
+
+function $(selector) { return document.querySelector(selector); }
+function field(name) { return form.elements.namedItem(name); }
+
+function setConnectionStatus() {
+  const online = navigator.onLine;
+  const badge = $("#connectionBadge");
+  badge.textContent = online ? "● Online" : "● Offline — device saving active";
+  badge.classList.toggle("offline", !online);
+}
+
+function formatDate(iso) {
+  return new Intl.DateTimeFormat("en-GH", { dateStyle: "medium", timeStyle: "short" }).format(new Date(iso));
+}
+
+function readForm() {
+  const now = new Date().toISOString();
+  return {
+    ...state.active,
+    customerName: field("customerName").value.trim(),
+    customerPhone: field("customerPhone").value.trim(),
+    deliveryAddress: field("deliveryAddress").value.trim(),
+    orderReference: field("orderReference").value.trim(),
+    productName: field("productName").value.trim(),
+    quantity: field("quantity").value,
+    unit: field("unit").value,
+    driverName: field("driverName").value.trim(),
+    vehicleNumber: field("vehicleNumber").value.trim().toUpperCase(),
+    notes: field("notes").value.trim(),
+    customerSignature: state.signatureDirty
+      ? (state.signaturePresent ? canvas.toDataURL("image/png") : null)
+      : state.active.customerSignature,
+    updatedAt: now
+  };
+}
+
+function populateForm(waybill, persisted = false) {
+  state.active = waybill;
+  state.persisted = persisted;
+  state.signatureDirty = false;
+  state.signaturePresent = Boolean(waybill.customerSignature);
+  form.reset();
+  for (const name of ["customerName", "customerPhone", "deliveryAddress", "orderReference", "productName", "quantity", "unit", "driverName", "vehicleNumber", "notes"]) {
+    field(name).value = waybill[name] ?? "";
+  }
+  $("#dialogTitle").textContent = waybill.status === "completed" ? "Completed delivery" : waybill.createdAt === waybill.updatedAt ? "New waybill" : "Edit waybill";
+  $("#waybillNumber").textContent = waybill.number;
+  const completed = waybill.status === "completed";
+  form.querySelectorAll("input, textarea, select").forEach((element) => { element.disabled = completed; });
+  $("#gpsButton").hidden = completed;
+  $("#clearSignatureButton").hidden = completed;
+  canvas.style.pointerEvents = completed ? "none" : "";
+  $("#saveDraftButton").hidden = completed;
+  $("#completeButton").hidden = completed;
+  $("#deleteButton").hidden = !persisted || completed;
+  $("#gpsStatus").textContent = waybill.latitude == null
+    ? "No location captured"
+    : `${waybill.latitude.toFixed(5)}, ${waybill.longitude.toFixed(5)} (±${Math.round(waybill.gpsAccuracy)} m)`;
+  photoPreview.hidden = !waybill.photo;
+  if (waybill.photo) photoPreview.src = waybill.photo;
+  clearCanvas(false);
+  if (waybill.customerSignature) {
+    const image = new Image();
+    image.onload = () => {
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      state.signaturePresent = true;
+    };
+    image.src = waybill.customerSignature;
+  }
+  clearErrors();
+  showNotice(waybill.status === "completed" ? "This completed record is stored on this device and awaiting the future server sync service." : "Changes are saved locally on this device.");
+}
+
+function showNotice(message) {
+  const notice = $("#formNotice");
+  notice.textContent = message;
+  notice.hidden = false;
+}
+
+function clearErrors() {
+  form.querySelectorAll(".invalid").forEach((element) => element.classList.remove("invalid"));
+}
+
+function showErrors(errors) {
+  clearErrors();
+  const firstName = Object.keys(errors)[0];
+  for (const name of Object.keys(errors)) {
+    const element = field(name);
+    if (element) element.classList.add("invalid");
+  }
+  showNotice(Object.values(errors).join(" "));
+  field(firstName)?.focus();
+}
+
+async function persist(status) {
+  clearTimeout(autosaveTimer);
+  const waybill = readForm();
+  if (status === "completed") {
+    const errors = validateWaybill(waybill);
+    if (Object.keys(errors).length) return showErrors(errors);
+  }
+  waybill.status = status;
+  waybill.syncStatus = status === "completed" ? "pending" : "local_only";
+  await saveWaybill(waybill);
+  state.active = waybill;
+  dialog.close();
+  await refreshList();
+}
+
+function hasDraftContent(waybill) {
+  return [
+    waybill.customerName,
+    waybill.customerPhone,
+    waybill.deliveryAddress,
+    waybill.orderReference,
+    waybill.productName,
+    waybill.quantity,
+    waybill.driverName,
+    waybill.vehicleNumber,
+    waybill.notes,
+    waybill.customerSignature,
+    waybill.photo,
+    waybill.latitude
+  ].some((value) => value !== null && String(value).trim() !== "");
+}
+
+async function autosaveDraft() {
+  if (!dialog.open || state.active?.status === "completed") return;
+  const waybill = readForm();
+  if (!hasDraftContent(waybill)) return;
+  waybill.status = "draft";
+  waybill.syncStatus = "local_only";
+  await saveWaybill(waybill);
+  state.active = waybill;
+  state.persisted = true;
+  $("#deleteButton").hidden = false;
+  showNotice(`Saved on this device at ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`);
+  await refreshList();
+}
+
+function scheduleAutosave() {
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(() => autosaveDraft().catch((error) => showNotice(`Device save failed: ${error.message}`)), 600);
+}
+
+async function refreshList() {
+  const items = await listWaybills();
+  const summary = summarizeWaybills(items);
+  $("#totalCount").textContent = summary.total;
+  $("#draftCount").textContent = summary.drafts;
+  $("#completedCount").textContent = summary.completed;
+  $("#pendingCount").textContent = summary.pending;
+  $("#emptyState").hidden = items.length > 0;
+  const list = $("#waybillList");
+  list.replaceChildren();
+  for (const item of items) {
+    const card = $("#waybillTemplate").content.cloneNode(true);
+    card.querySelector('[data-field="number"]').textContent = item.number;
+    card.querySelector('[data-field="customerName"]').textContent = item.customerName || "Unnamed customer";
+    const status = card.querySelector('[data-field="status"]');
+    status.textContent = item.status;
+    status.classList.toggle("draft", item.status === "draft");
+    card.querySelector('[data-field="product"]').textContent = item.productName ? `${item.productName} · ${item.quantity || "—"} ${item.unit}` : "Not entered";
+    card.querySelector('[data-field="vehicle"]').textContent = item.vehicleNumber || "Not assigned";
+    card.querySelector('[data-field="updated"]').textContent = formatDate(item.updatedAt);
+    card.querySelector('[data-field="sync"]').textContent = item.syncStatus === "pending" ? "Pending server" : "Device only";
+    card.querySelector(".card-action").addEventListener("click", async () => {
+      populateForm(await getWaybill(item.id), true);
+      dialog.showModal();
+    });
+    list.append(card);
+  }
+}
+
+function clearCanvas(markDirty = false) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = "#123c29";
+  state.signatureDirty = markDirty;
+  state.signaturePresent = false;
+}
+
+function canvasPoint(event) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: (event.clientX - rect.left) * (canvas.width / rect.width),
+    y: (event.clientY - rect.top) * (canvas.height / rect.height)
+  };
+}
+
+canvas.addEventListener("pointerdown", (event) => {
+  drawing = true;
+  canvas.setPointerCapture(event.pointerId);
+  const point = canvasPoint(event);
+  ctx.beginPath();
+  ctx.moveTo(point.x, point.y);
+});
+canvas.addEventListener("pointermove", (event) => {
+  if (!drawing) return;
+  const point = canvasPoint(event);
+  ctx.lineTo(point.x, point.y);
+  ctx.stroke();
+  state.signatureDirty = true;
+  state.signaturePresent = true;
+});
+canvas.addEventListener("pointerup", () => {
+  drawing = false;
+  scheduleAutosave();
+});
+canvas.addEventListener("pointercancel", () => { drawing = false; });
+
+$("#newWaybillButton").addEventListener("click", () => {
+  populateForm(createEmptyWaybill());
+  dialog.showModal();
+});
+$("#closeDialogButton").addEventListener("click", async () => {
+  await autosaveDraft();
+  dialog.close();
+});
+$("#clearSignatureButton").addEventListener("click", () => {
+  clearCanvas(true);
+  scheduleAutosave();
+});
+$("#saveDraftButton").addEventListener("click", () => persist("draft"));
+$("#completeButton").addEventListener("click", () => persist("completed"));
+$("#deleteButton").addEventListener("click", async () => {
+  if (!confirm(`Delete ${state.active.number} from this device?`)) return;
+  await deleteWaybill(state.active.id);
+  dialog.close();
+  await refreshList();
+});
+
+$("#gpsButton").addEventListener("click", () => {
+  if (!navigator.geolocation) return showNotice("GPS is not available on this device.");
+  $("#gpsStatus").textContent = "Capturing location…";
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      state.active.latitude = position.coords.latitude;
+      state.active.longitude = position.coords.longitude;
+      state.active.gpsAccuracy = position.coords.accuracy;
+      state.active.gpsCapturedAt = new Date(position.timestamp).toISOString();
+      $("#gpsStatus").textContent = `${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)} (±${Math.round(position.coords.accuracy)} m)`;
+      scheduleAutosave();
+    },
+    (error) => showNotice(`Location was not captured: ${error.message}`),
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+  );
+});
+
+$("#photoInput").addEventListener("change", (event) => {
+  const [file] = event.target.files;
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) {
+    event.target.value = "";
+    return showNotice("Please use a photo smaller than 5 MB for reliable offline storage.");
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    state.active.photo = reader.result;
+    photoPreview.src = reader.result;
+    photoPreview.hidden = false;
+    scheduleAutosave();
+  };
+  reader.readAsDataURL(file);
+});
+
+$("#exportButton").addEventListener("click", async () => {
+  const data = JSON.stringify({ exportedAt: new Date().toISOString(), waybills: await listWaybills() }, null, 2);
+  const url = URL.createObjectURL(new Blob([data], { type: "application/json" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `safiroute-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+});
+
+for (const unit of UNITS) field("unit").add(new Option(unit, unit));
+form.addEventListener("submit", (event) => event.preventDefault());
+form.addEventListener("input", scheduleAutosave);
+window.addEventListener("online", setConnectionStatus);
+window.addEventListener("offline", setConnectionStatus);
+setConnectionStatus();
+await refreshList();
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("./sw.js").catch((error) => console.error("Service worker registration failed", error));
+}
