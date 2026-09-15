@@ -58,13 +58,13 @@ button { cursor: pointer; }
   height: 70%;
   background: conic-gradient(from 210deg at 50% 40%,
     rgba(131, 201, 0, .0),
-    rgba(255, 195, 24, .18),
-    rgba(8, 124, 73, .28),
-    rgba(131, 201, 0, .12),
+    rgba(255, 195, 24, .12),
+    rgba(8, 124, 73, .22),
+    rgba(131, 201, 0, .08),
     transparent 70%);
   filter: blur(30px);
   animation: aurora-spin 28s linear infinite;
-  opacity: .85;
+  opacity: .55;
 }
 
 .orb {
@@ -76,13 +76,13 @@ button { cursor: pointer; }
 
 .orb-lime {
   width: 420px; height: 420px; top: -90px; left: -110px;
-  background: rgba(131, 201, 0, .38);
+  background: rgba(131, 201, 0, .22);
   animation: drift-a 18s var(--ease-out) infinite;
 }
 
 .orb-gold {
   width: 340px; height: 340px; top: 12%; right: -90px;
-  background: rgba(255, 195, 24, .32);
+  background: rgba(255, 195, 24, .18);
   animation: drift-b 22s var(--ease-out) infinite;
 }
 
@@ -95,8 +95,113 @@ button { cursor: pointer; }
 
 .orb-warm {
   width: 220px; height: 220px; bottom: 18%; right: 12%;
-  background: rgba(255, 232, 160, .2);
+  background: rgba(255, 232, 160, .12);
   animation: drift-a 16s var(--ease-out) infinite reverse;
+}
+
+.route {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.route-track {
+  fill: none;
+  stroke: rgba(255, 195, 24, .16);
+  stroke-width: 1.6;
+  stroke-dasharray: 7 11;
+  stroke-linecap: round;
+}
+
+.route-trace {
+  fill: none;
+  stroke: url(#routeGold);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-dasharray: 12 16;
+}
+
+.route-node {
+  fill: var(--pad-paper);
+  stroke: var(--gold);
+  stroke-width: 2;
+}
+
+.route-origin { fill: #075b38; stroke: var(--gold); }
+.route-drop { fill: var(--gold); stroke: #f6f1e4; }
+
+.sheet {
+  position: absolute;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 0 0 12px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.2), transparent 22%),
+    linear-gradient(180deg, #f8f3e8 0%, var(--pad-paper) 48%, var(--pad-paper-deep) 100%);
+  border: 1px solid rgba(200, 185, 146, .58);
+  border-radius: 5px;
+  box-shadow:
+    0 1px 0 #fff8e8 inset,
+    0 18px 36px rgba(4, 21, 12, .32);
+  opacity: .42;
+}
+
+.sheet-bar {
+  display: block;
+  padding: 6px 9px 5px;
+  background: linear-gradient(180deg, #ffd24d, var(--gold));
+  color: var(--green-800);
+  font-size: .62rem;
+  font-weight: 800;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+.sheet-line {
+  display: block;
+  height: 0;
+  margin: 0 10px;
+  border-bottom: 1px dotted rgba(154, 175, 156, .9);
+}
+
+.sheet-line-short { width: 52%; }
+
+.sheet-a {
+  width: 122px;
+  top: 8%;
+  left: 5%;
+  transform: rotate(-11deg);
+  animation: sheet-drift-a 24s var(--ease-out) infinite;
+}
+
+.sheet-b {
+  width: 108px;
+  top: 14%;
+  right: 7%;
+  opacity: .34;
+  transform: rotate(9deg);
+  animation: sheet-drift-b 28s var(--ease-out) infinite;
+}
+
+.sheet-c {
+  width: 96px;
+  bottom: 16%;
+  left: 10%;
+  opacity: .3;
+  transform: rotate(-6deg);
+  animation: sheet-drift-c 26s var(--ease-out) infinite;
+}
+
+.sheet-d {
+  width: 88px;
+  bottom: 11%;
+  right: 9%;
+  opacity: .36;
+  transform: rotate(-11deg);
+  animation: sheet-drift-a 21s var(--ease-out) infinite reverse;
 }
 
 .grain {
@@ -131,6 +236,33 @@ button { cursor: pointer; }
 @keyframes drift-c {
   0%, 100% { transform: translate(0, 0) scale(1); }
   50% { transform: translate(28px, -30px) scale(1.08); }
+}
+
+@keyframes sheet-drift-a {
+  0%, 100% { transform: rotate(-11deg) translate(0, 0); }
+  50% { transform: rotate(-7deg) translate(16px, -14px); }
+}
+
+@keyframes sheet-drift-b {
+  0%, 100% { transform: rotate(9deg) translate(0, 0); }
+  50% { transform: rotate(13deg) translate(-14px, 12px); }
+}
+
+@keyframes sheet-drift-c {
+  0%, 100% { transform: rotate(-6deg) translate(0, 0); }
+  50% { transform: rotate(-2deg) translate(10px, 16px); }
+}
+
+@keyframes route-trace {
+  from { stroke-dashoffset: 1000; }
+  to { stroke-dashoffset: 0; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .route-trace {
+    stroke-dasharray: 160 840;
+    animation: route-trace 16s linear infinite;
+  }
 }
 
 .wordmark {
@@ -930,6 +1062,10 @@ html[data-dir="back"]::view-transition-new(page) {
   .form-actions button { flex: 1 1 42%; }
   .form-actions .danger { flex-basis: 100%; }
   .gate-card { padding: 28px 20px 24px; }
+  .sheet-a { width: 84px; top: 6%; left: 3%; }
+  .sheet-b { width: 76px; top: 10%; right: 3%; }
+  .sheet-c { width: 70px; bottom: 18%; left: 4%; }
+  .sheet-d { width: 66px; bottom: 10%; right: 4%; }
 }
 
 @media print {
@@ -943,7 +1079,8 @@ html[data-dir="back"]::view-transition-new(page) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .aurora, .orb, .glow::after, .topbar::after, .atmosphere-canvas { animation: none !important; }
+  .aurora, .orb, .glow::after, .topbar::after, .atmosphere-canvas,
+  .sheet, .route-trace { animation: none !important; }
   .gate-card, #appShell:not([hidden]), .summary article, .waybill-card, dialog[open] { animation: none !important; }
   html::view-transition-old(page),
   html::view-transition-new(page) { animation: none !important; }

@@ -161,43 +161,134 @@ function setView(name, { instant = false } = {}) {
   }, { once: true });
 }
 
+function cubicPoint(p0, p1, p2, p3, t) {
+  const u = 1 - t;
+  return {
+    x: u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x,
+    y: u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y
+  };
+}
+
+function routePoint(t) {
+  const start = { x: 0.075, y: 0.80 };
+  const mid = { x: 0.433, y: 0.475 };
+  const end = { x: 0.917, y: 0.20 };
+  if (t < 0.48) {
+    return cubicPoint(start, { x: 0.20, y: 0.75 }, { x: 0.233, y: 0.525 }, mid, t / 0.48);
+  }
+  return cubicPoint(mid, { x: 0.633, y: 0.425 }, { x: 0.717, y: 0.375 }, end, (t - 0.48) / 0.52);
+}
+
 function startAtmosphere() {
   const canvas = $("#atmosphereCanvas");
   if (!canvas || prefersReducedMotion()) return;
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
-  const particles = Array.from({ length: 46 }, () => ({
-    x: Math.random(),
-    y: Math.random(),
-    r: Math.random() * 1.7 + 0.35,
-    s: Math.random() * 0.00032 + 0.0001,
-    a: Math.random() * 0.42 + 0.12,
-    gold: Math.random() > 0.42
-  }));
+
+  const sheets = [
+    { x: 0.11, y: 0.68, w: 86, h: 112, rot: -0.16, bob: 0.8, a: 0.26 },
+    { x: 0.89, y: 0.54, w: 74, h: 96, rot: 0.12, bob: 1.4, a: 0.22 },
+    { x: 0.84, y: 0.16, w: 68, h: 88, rot: -0.08, bob: 2.1, a: 0.2 },
+    { x: 0.14, y: 0.24, w: 70, h: 92, rot: 0.18, bob: 1.1, a: 0.18 }
+  ];
+  const checks = [
+    { t: 0.08, speed: 0.00011 },
+    { t: 0.42, speed: 0.00009 },
+    { t: 0.76, speed: 0.00013 }
+  ];
+  const courier = { t: 0.2 };
+
   const resize = () => {
     const ratio = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.floor(window.innerWidth * ratio);
     canvas.height = Math.floor(window.innerHeight * ratio);
   };
-  const tick = () => {
-    const { width: w, height: h } = canvas;
-    ctx.clearRect(0, 0, w, h);
-    for (const particle of particles) {
-      particle.y -= particle.s;
-      particle.x += Math.sin(particle.y * 14) * 0.00016;
-      if (particle.y < -0.02) {
-        particle.y = 1.02;
-        particle.x = Math.random();
-      }
+
+  const drawSheet = (sheet, w, h, scale, now) => {
+    const lift = Math.sin(now * 0.0007 + sheet.bob) * 10 * scale;
+    ctx.save();
+    ctx.translate(sheet.x * w, sheet.y * h + lift);
+    ctx.rotate(sheet.rot + Math.sin(now * 0.0004 + sheet.bob) * 0.04);
+    ctx.globalAlpha = sheet.a;
+    const sw = sheet.w * scale;
+    const sh = sheet.h * scale;
+    ctx.fillStyle = "#f6f1e4";
+    ctx.strokeStyle = "rgba(200, 185, 146, 0.7)";
+    ctx.lineWidth = 1 * scale;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(-sw / 2, -sh / 2, sw, sh, 4 * scale);
+    else ctx.rect(-sw / 2, -sh / 2, sw, sh);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#ffc318";
+    ctx.fillRect(-sw / 2, -sh / 2, sw, sh * 0.18);
+    ctx.fillStyle = "#075b38";
+    ctx.font = `700 ${Math.max(8, sh * 0.1)}px "Iowan Old Style", Palatino, Georgia, serif`;
+    ctx.fillText("No.", -sw / 2 + 8 * scale, -sh / 2 + sh * 0.13);
+    ctx.setLineDash([3 * scale, 4 * scale]);
+    ctx.strokeStyle = "rgba(154, 175, 156, 0.85)";
+    ctx.lineWidth = 1 * scale;
+    for (let i = 0; i < 3; i += 1) {
+      const ly = -sh / 2 + sh * 0.38 + i * sh * 0.18;
+      const endX = i === 2 ? sw * 0.12 : sw / 2 - 8 * scale;
       ctx.beginPath();
-      ctx.fillStyle = particle.gold
-        ? `rgba(255, 195, 24, ${particle.a})`
-        : `rgba(210, 255, 176, ${particle.a * 0.72})`;
-      ctx.arc(particle.x * w, particle.y * h, particle.r * (w / window.innerWidth), 0, Math.PI * 2);
-      ctx.fill();
+      ctx.moveTo(-sw / 2 + 8 * scale, ly);
+      ctx.lineTo(endX, ly);
+      ctx.stroke();
     }
+    ctx.restore();
+  };
+
+  const drawCheck = (point, size, alpha) => {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = "#83c900";
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#f6f1e4";
+    ctx.lineWidth = Math.max(1.4, size * 0.28);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    ctx.moveTo(point.x - size * 0.38, point.y + size * 0.04);
+    ctx.lineTo(point.x - size * 0.08, point.y + size * 0.32);
+    ctx.lineTo(point.x + size * 0.4, point.y - size * 0.28);
+    ctx.stroke();
+    ctx.restore();
+  };
+
+  const tick = (now) => {
+    const { width: w, height: h } = canvas;
+    const scale = w / window.innerWidth;
+    ctx.clearRect(0, 0, w, h);
+
+    for (const sheet of sheets) drawSheet(sheet, w, h, scale, now);
+
+    courier.t = (courier.t + 0.00008) % 1;
+    const bead = routePoint(courier.t);
+    ctx.save();
+    ctx.fillStyle = "rgba(255, 195, 24, 0.88)";
+    ctx.strokeStyle = "rgba(246, 241, 228, 0.9)";
+    ctx.lineWidth = 1.4 * scale;
+    ctx.beginPath();
+    ctx.arc(bead.x * w, bead.y * h, 4.4 * scale, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    for (const mote of checks) {
+      mote.t += mote.speed;
+      if (mote.t > 1.08) mote.t = -0.06;
+      const point = routePoint(Math.max(0, Math.min(1, mote.t)));
+      const px = { x: point.x * w, y: point.y * h };
+      const fade = mote.t < 0.08 ? mote.t / 0.08 : mote.t > 0.9 ? Math.max(0, (1.05 - mote.t) / 0.15) : 1;
+      drawCheck(px, 7.5 * scale, 0.72 * fade);
+    }
+
     requestAnimationFrame(tick);
   };
+
   resize();
   window.addEventListener("resize", resize);
   requestAnimationFrame(tick);

@@ -29,6 +29,24 @@ test("main document exposes the offline form controls", () => {
   }
 });
 
+test("atmosphere depicts waybill sheets and a delivery route", () => {
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  assert.match(html, /class="route"/);
+  assert.match(html, /class="sheet sheet-a"/);
+  assert.match(html, /class="sheet-bar"/);
+  const css = fs.readFileSync(path.join(root, "styles.css"), "utf8");
+  assert.match(css, /route-trace/);
+  assert.match(css, /sheet-drift-a/);
+  const js = fs.readFileSync(path.join(root, "app.js"), "utf8");
+  assert.match(js, /drawCheck/);
+  assert.doesNotMatch(js, /gold: Math\.random/);
+});
+
+test("service worker cache is bumped with the shell", () => {
+  const source = fs.readFileSync(path.join(root, "sw.js"), "utf8");
+  assert.match(source, /safiroute-shell-v15/);
+});
+
 test("waybill dialog follows the Safisana paper pad", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
   for (const phrase of [
