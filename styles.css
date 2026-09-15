@@ -26,14 +26,15 @@ button, input, textarea, select { font: inherit; }
 button { cursor: pointer; }
 
 .gate {
-  min-height: 100dvh; display: grid; place-content: center; justify-items: center; gap: 8px;
+  min-height: 100dvh; display: none; place-content: center; justify-items: center; gap: 8px;
   padding: 36px 22px 48px; text-align: center;
   background:
     radial-gradient(900px 420px at 12% -8%, rgba(255,195,24,.2), transparent 52%),
     radial-gradient(700px 360px at 110% 0%, rgba(8,124,73,.12), transparent 48%),
     #f4efe2;
 }
-.gate-logo { width: min(210px, 72vw); height: auto; }
+.gate:not([hidden]) { display: grid; }
+.gate-logo { width: min(210px, 72vw); height: auto; background: #f4efe2; }
 .gate-tag { margin: 0; font-size: .72rem; letter-spacing: .16em; font-weight: 900; color: var(--green-700); text-transform: uppercase; }
 .gate-name { margin: 12px 0 0; font-size: 1.7rem; font-weight: 800; letter-spacing: -.03em; }
 .gate-role { margin: 0; color: var(--muted); font-weight: 650; }
@@ -231,6 +232,12 @@ input:focus, textarea:focus, select:focus { outline: 3px solid rgba(131,201,0,.2
 .settings-notice { margin: 0; }
 .settings-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
 .muted { color: var(--muted); margin: 0 0 8px; }
+#appShell[hidden],
+#waybillsView[hidden],
+#settingsView[hidden],
+#pinUnlockLabel[hidden] {
+  display: none !important;
+}
 .app-nav {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 8;
   display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
