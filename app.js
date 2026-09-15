@@ -27,15 +27,32 @@ const PAD_FIELDS = [
   "receivedBy"
 ];
 
-function roleLabel(role) {
-  return { sales: "Sales", supervisor: "Supervisor", dispatch: "Dispatch", driver: "Dispatch" }[role] || "Sales";
-}
-
 function greeting() {
   const hour = new Date().getHours();
   if (hour < 12) return "Good morning";
   if (hour < 17) return "Good afternoon";
   return "Good evening";
+}
+
+function applyProfileDefaults(waybill) {
+  if (!profile?.operatorName) return waybill;
+  waybill.authorisedBy = profile.operatorName;
+  return waybill;
+}
+
+function renderChrome() {
+  if (!profile) return;
+  $("#headerOperator").textContent = profile.operatorName;
+  $("#greeting").textContent = `${greeting()}, ${profile.operatorName.split(" ")[0]}`;
+  $("#homeTitle").textContent = "Compost waybills";
+  $("#homeSubtitle").textContent = "Sales pad on this phone — no login required";
+  $("#lockName").textContent = profile.operatorName;
+  $("#lockRole").textContent = "Sales";
+  const needsPin = Boolean(profile.pinHash);
+  $("#pinUnlockLabel").hidden = !needsPin;
+  $("#unlockPin").required = needsPin;
+  $("#logoutButton").hidden = !needsPin;
+  $("#settingsName").value = profile.operatorName;
 }
 
 function showGate(name) {
@@ -50,34 +67,6 @@ function unlockSession() {
 
 function lockSession() {
   sessionStorage.removeItem(SESSION);
-}
-
-function applyProfileDefaults(waybill) {
-  if (!profile?.operatorName) return waybill;
-  if (profile.role === "dispatch" || profile.role === "driver") {
-    waybill.driverName = profile.operatorName;
-    waybill.vehicleNumber = (profile.vehicleNumber || "").toUpperCase();
-  } else {
-    waybill.authorisedBy = profile.operatorName;
-    if (profile.vehicleNumber) waybill.vehicleNumber = profile.vehicleNumber.toUpperCase();
-  }
-  return waybill;
-}
-
-function renderChrome() {
-  if (!profile) return;
-  $("#headerOperator").textContent = profile.operatorName;
-  $("#greeting").textContent = `${greeting()}, ${profile.operatorName.split(" ")[0]}`;
-  $("#homeTitle").textContent = "Compost waybills";
-  $("#homeSubtitle").textContent = `${roleLabel(profile.role)} · walk-in compost sales on this phone`;
-  $("#lockName").textContent = profile.operatorName;
-  $("#lockRole").textContent = roleLabel(profile.role);
-  const needsPin = Boolean(profile.pinHash);
-  $("#pinUnlockLabel").hidden = !needsPin;
-  $("#unlockPin").required = needsPin;
-  $("#settingsName").value = profile.operatorName;
-  $("#settingsRole").value = profile.role === "driver" ? "dispatch" : profile.role;
-  $("#settingsVehicle").value = profile.vehicleNumber || "";
 }
 
 async function enterApp() {
@@ -502,13 +491,12 @@ document.querySelectorAll("[data-filter]").forEach((button) => {
 
 $("#setupForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const pin = $("#setupPin").value.trim();
   profile = {
     id: "profile",
     operatorName: $("#setupName").value.trim(),
-    role: $("#setupRole").value,
-    vehicleNumber: $("#setupVehicle").value.trim().toUpperCase(),
-    pinHash: pin ? await hashPin(pin) : null,
+    role: "sales",
+    vehicleNumber: "",
+    pinHash: null,
     updatedAt: new Date().toISOString()
   };
   await saveProfile(profile);
@@ -521,8 +509,7 @@ $("#settingsForm").addEventListener("submit", async (event) => {
   profile = {
     ...profile,
     operatorName: $("#settingsName").value.trim(),
-    role: $("#settingsRole").value,
-    vehicleNumber: $("#settingsVehicle").value.trim().toUpperCase(),
+    role: "sales",
     pinHash: pin ? await hashPin(pin) : profile.pinHash,
     updatedAt: new Date().toISOString()
   };
@@ -563,7 +550,7 @@ setConnectionStatus();
 profile = await getProfile();
 if (!profile?.operatorName) {
   showGate("setup");
-} else if (sessionStorage.getItem(SESSION) !== "open") {
+} else if (profile.pinHash && sessionStorage.getItem(SESSION) !== "open") {
   renderChrome();
   showGate("lock");
 } else {

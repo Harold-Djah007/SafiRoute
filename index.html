@@ -26,20 +26,11 @@
     <section id="setupScreen" class="gate setup" hidden>
       <img src="./assets/safiroute-logo.png" alt="SafiRoute" class="gate-logo" />
       <p class="gate-tag">Safisana Ghana · Sales waybill</p>
-      <h1>Set up this phone</h1>
-      <p class="gate-copy">Sales uses this pad when a customer comes to buy compost. The customer and the other signing parties all sign on this same sheet.</p>
+      <h1>Sales person’s name</h1>
+      <p class="gate-copy">This is not a login. There is no password and no Safisana account yet. Type your name so Authorised by is already filled when a customer buys compost.</p>
       <form id="setupForm" class="stack-form">
-        <label>Your name<input id="setupName" name="operatorName" required autocomplete="name" /></label>
-        <label>You are
-          <select id="setupRole" name="role">
-            <option value="sales" selected>Sales</option>
-            <option value="supervisor">Supervisor</option>
-            <option value="dispatch">Dispatch</option>
-          </select>
-        </label>
-        <label>Usual vehicle (optional)<input id="setupVehicle" name="vehicleNumber" autocapitalize="characters" placeholder="e.g. GT 100-26" /></label>
-        <label>4-digit PIN (optional)<input id="setupPin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" /></label>
-        <button class="primary" type="submit">Continue</button>
+        <label>Your name<input id="setupName" name="operatorName" required autocomplete="name" placeholder="e.g. Ama Boateng" /></label>
+        <button class="primary" type="submit">Open the pad</button>
       </form>
     </section>
 
@@ -98,27 +89,19 @@
       <main id="settingsView" class="shell settings" hidden>
         <p class="eyebrow">THIS PHONE</p>
         <h1>Settings</h1>
-        <p class="lede">Your name fills the pad. Log out only locks this phone — compost waybills are not deleted.</p>
+        <p class="lede">Change the sales name used on Authorised by. There is no company login on this pad yet.</p>
 
         <form id="settingsForm" class="stack-form panel settings-panel">
-          <h2>Operator</h2>
+          <h2>Sales person</h2>
           <label>Name<input id="settingsName" name="operatorName" required autocomplete="name" /></label>
-          <label>You are
-            <select id="settingsRole" name="role">
-              <option value="sales">Sales</option>
-              <option value="supervisor">Supervisor</option>
-              <option value="dispatch">Dispatch</option>
-            </select>
-          </label>
-          <label>Usual vehicle<input id="settingsVehicle" name="vehicleNumber" autocapitalize="characters" /></label>
-          <label>New 4-digit PIN<input id="settingsPin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="Leave blank to keep current" /></label>
-          <button class="primary" type="submit">Save settings</button>
+          <label>Optional phone lock PIN<input id="settingsPin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="Leave blank — no password needed" /></label>
+          <button class="primary" type="submit">Save name</button>
           <p id="settingsNotice" class="notice settings-notice" hidden></p>
         </form>
 
         <section class="panel settings-panel">
           <h2>Device</h2>
-          <p class="muted">Export a JSON backup before clearing browser data. Server login is not connected on this pad yet.</p>
+          <p class="muted">Waybills stay on this phone. You do not need Safisana login details here.</p>
           <div class="settings-actions">
             <button id="exportButton" type="button" class="secondary">Export backup</button>
             <button id="logoutButton" type="button" class="danger">Log out</button>
