@@ -58,6 +58,8 @@ export function createEmptyWaybill(now = new Date(), random = Math.random) {
     vehicleNumber: "",
     notes: "",
     receivedBy: "",
+    authorisedSignature: null,
+    dispatchedSignature: null,
     latitude: null,
     longitude: null,
     gpsAccuracy: null,

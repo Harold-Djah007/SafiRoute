@@ -1,14 +1,12 @@
 import { createEmptyWaybill, firstFilledItem, normalizeItems, summarizeWaybills, validateWaybill } from "./model.js";
 import { deleteWaybill, getWaybill, listWaybills, saveWaybill } from "./storage.js";
 
-const state = { active: null, persisted: false, signatureDirty: false, signaturePresent: false };
+const state = { active: null, persisted: false };
 const dialog = document.querySelector("#waybillDialog");
 const form = document.querySelector("#waybillForm");
-const canvas = document.querySelector("#signatureCanvas");
-const ctx = canvas.getContext("2d");
 const photoPreview = document.querySelector("#photoPreview");
-let drawing = false;
 let autosaveTimer = null;
+const pads = {};
 
 function $(selector) { return document.querySelector(selector); }
 function field(name) { return form.elements.namedItem(name); }
@@ -86,9 +84,9 @@ function readForm() {
     vehicleNumber: field("vehicleNumber").value.trim().toUpperCase(),
     receivedBy: field("receivedBy").value.trim(),
     items,
-    customerSignature: state.signatureDirty
-      ? (state.signaturePresent ? canvas.toDataURL("image/png") : null)
-      : state.active.customerSignature,
+    authorisedSignature: pads.authorised.read(),
+    dispatchedSignature: pads.dispatched.read(),
+    customerSignature: pads.customer.read(),
     updatedAt: now
   };
   const line = firstFilledItem(waybill);
@@ -100,8 +98,6 @@ function readForm() {
 function populateForm(waybill, persisted = false) {
   state.active = waybill;
   state.persisted = persisted;
-  state.signatureDirty = false;
-  state.signaturePresent = Boolean(waybill.customerSignature);
   form.reset();
   for (const name of PAD_FIELDS) {
     field(name).value = waybill[name] ?? "";
@@ -112,9 +108,13 @@ function populateForm(waybill, persisted = false) {
   const completed = waybill.status === "completed";
   form.querySelectorAll("input, textarea, select").forEach((element) => { element.disabled = completed; });
   $("#gpsButton").hidden = completed;
-  $("#clearSignatureButton").hidden = completed;
   $("#addLineButton").hidden = completed;
-  canvas.style.pointerEvents = completed ? "none" : "";
+  pads.authorised.load(waybill.authorisedSignature);
+  pads.dispatched.load(waybill.dispatchedSignature);
+  pads.customer.load(waybill.customerSignature);
+  pads.authorised.setEnabled(!completed);
+  pads.dispatched.setEnabled(!completed);
+  pads.customer.setEnabled(!completed);
   $("#saveDraftButton").hidden = completed;
   $("#completeButton").hidden = completed;
   $("#deleteButton").hidden = !persisted || completed;
@@ -123,15 +123,6 @@ function populateForm(waybill, persisted = false) {
     : `${waybill.latitude.toFixed(5)}, ${waybill.longitude.toFixed(5)} (±${Math.round(waybill.gpsAccuracy)} m)`;
   photoPreview.hidden = !waybill.photo;
   if (waybill.photo) photoPreview.src = waybill.photo;
-  clearCanvas(false);
-  if (waybill.customerSignature) {
-    const image = new Image();
-    image.onload = () => {
-      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-      state.signaturePresent = true;
-    };
-    image.src = waybill.customerSignature;
-  }
   clearErrors();
   showNotice(waybill.status === "completed" ? "This completed record is stored on this device and awaiting the future server sync service." : "Changes are saved locally on this device.");
 }
@@ -189,6 +180,8 @@ function hasDraftContent(waybill) {
     waybill.driverName,
     waybill.vehicleNumber,
     waybill.receivedBy,
+    waybill.authorisedSignature,
+    waybill.dispatchedSignature,
     waybill.customerSignature,
     waybill.photo,
     waybill.latitude
@@ -213,6 +206,108 @@ function scheduleAutosave() {
   clearTimeout(autosaveTimer);
   autosaveTimer = setTimeout(() => autosaveDraft().catch((error) => showNotice(`Device save failed: ${error.message}`)), 600);
 }
+
+function attachPad(canvas, { lineWidth = 3 } = {}) {
+  const ctx = canvas.getContext("2d");
+  const shell = canvas.closest(".sign-line, .sign-box");
+  let drawing = false;
+  let dirty = false;
+  let present = false;
+  let stored = null;
+
+  function style() {
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.lineWidth = lineWidth;
+    ctx.strokeStyle = "#1a3a28";
+  }
+
+  function point(event) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (event.clientX - rect.left) * (canvas.width / rect.width),
+      y: (event.clientY - rect.top) * (canvas.height / rect.height)
+    };
+  }
+
+  function clear(markDirty = false) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    style();
+    dirty = markDirty;
+    present = false;
+    if (markDirty) stored = null;
+    shell.classList.remove("is-signed", "is-signing");
+  }
+
+  function load(dataUrl) {
+    stored = dataUrl || null;
+    dirty = false;
+    present = Boolean(dataUrl);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    style();
+    shell.classList.toggle("is-signed", present);
+    shell.classList.remove("is-signing");
+    if (!dataUrl) return;
+    const image = new Image();
+    image.onload = () => {
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      present = true;
+      shell.classList.add("is-signed");
+    };
+    image.src = dataUrl;
+  }
+
+  function read() {
+    if (dirty) return present ? canvas.toDataURL("image/png") : null;
+    return stored;
+  }
+
+  function setEnabled(enabled) {
+    canvas.style.pointerEvents = enabled ? "" : "none";
+    const clearBtn = shell.querySelector("[data-clear-sign]");
+    if (clearBtn) clearBtn.hidden = !enabled;
+  }
+
+  canvas.addEventListener("pointerdown", (event) => {
+    drawing = true;
+    canvas.setPointerCapture(event.pointerId);
+    shell.classList.add("is-signing");
+    const start = point(event);
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+  });
+  canvas.addEventListener("pointermove", (event) => {
+    if (!drawing) return;
+    const next = point(event);
+    ctx.lineTo(next.x, next.y);
+    ctx.stroke();
+    dirty = true;
+    present = true;
+    shell.classList.add("is-signed");
+  });
+  canvas.addEventListener("pointerup", () => {
+    drawing = false;
+    shell.classList.remove("is-signing");
+    scheduleAutosave();
+  });
+  canvas.addEventListener("pointercancel", () => {
+    drawing = false;
+    shell.classList.remove("is-signing");
+  });
+  shell.querySelector("[data-clear-sign]")?.addEventListener("click", () => {
+    clear(true);
+    scheduleAutosave();
+  });
+  style();
+
+  return { clear, load, read, setEnabled };
+}
+
+Object.assign(pads, {
+  authorised: attachPad($("#authorisedSignature"), { lineWidth: 2.6 }),
+  dispatched: attachPad($("#dispatchedSignature"), { lineWidth: 2.6 }),
+  customer: attachPad($("#signatureCanvas"), { lineWidth: 5 })
+});
 
 function productSummary(item) {
   const line = firstFilledItem(item);
@@ -251,45 +346,6 @@ async function refreshList() {
   }
 }
 
-function clearCanvas(markDirty = false) {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.lineWidth = 5;
-  ctx.strokeStyle = "#1a3a28";
-  state.signatureDirty = markDirty;
-  state.signaturePresent = false;
-}
-
-function canvasPoint(event) {
-  const rect = canvas.getBoundingClientRect();
-  return {
-    x: (event.clientX - rect.left) * (canvas.width / rect.width),
-    y: (event.clientY - rect.top) * (canvas.height / rect.height)
-  };
-}
-
-canvas.addEventListener("pointerdown", (event) => {
-  drawing = true;
-  canvas.setPointerCapture(event.pointerId);
-  const point = canvasPoint(event);
-  ctx.beginPath();
-  ctx.moveTo(point.x, point.y);
-});
-canvas.addEventListener("pointermove", (event) => {
-  if (!drawing) return;
-  const point = canvasPoint(event);
-  ctx.lineTo(point.x, point.y);
-  ctx.stroke();
-  state.signatureDirty = true;
-  state.signaturePresent = true;
-});
-canvas.addEventListener("pointerup", () => {
-  drawing = false;
-  scheduleAutosave();
-});
-canvas.addEventListener("pointercancel", () => { drawing = false; });
-
 $("#newWaybillButton").addEventListener("click", () => {
   populateForm(createEmptyWaybill());
   dialog.showModal();
@@ -297,10 +353,6 @@ $("#newWaybillButton").addEventListener("click", () => {
 $("#closeDialogButton").addEventListener("click", async () => {
   await autosaveDraft();
   dialog.close();
-});
-$("#clearSignatureButton").addEventListener("click", () => {
-  clearCanvas(true);
-  scheduleAutosave();
 });
 $("#addLineButton").addEventListener("click", addItemRow);
 $("#saveDraftButton").addEventListener("click", () => persist("draft"));

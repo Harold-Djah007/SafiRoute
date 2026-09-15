@@ -11,6 +11,8 @@ test("new waybill starts as a local draft", () => {
   assert.equal(item.status, "draft");
   assert.equal(item.syncStatus, "local_only");
   assert.equal(item.unit, "Bags");
+  assert.equal(item.authorisedSignature, null);
+  assert.equal(item.dispatchedSignature, null);
 });
 
 test("completion validation requires delivery evidence", () => {

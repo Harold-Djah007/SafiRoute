@@ -105,22 +105,42 @@
           <div class="pad-footer">
             <div class="pad-col">
               <label><span>Authorised by:</span><input name="authorisedBy" class="waybill-line" /></label>
-              <p>Signature: <span class="dots"></span></p>
+              <div class="sign-line" data-sign="authorised">
+                <div class="sign-line-head">
+                  <span>Signature:</span>
+                  <button type="button" data-clear-sign class="text-button">Clear</button>
+                </div>
+                <div class="sign-line-surface">
+                  <span class="sign-hint">Sign on the line</span>
+                  <canvas id="authorisedSignature" width="720" height="140" aria-label="Authorised by signature"></canvas>
+                </div>
+              </div>
               <p>Date: <span class="dots short"></span></p>
               <label><span>Remarks:</span><input name="authorisedRemarks" class="waybill-line" /></label>
             </div>
             <div class="pad-col">
               <label><span>Dispatched by:</span><input name="driverName" class="waybill-line" autocomplete="name" /></label>
               <label><span>Vehicle:</span><input name="vehicleNumber" class="waybill-line" autocapitalize="characters" /></label>
-              <p>Signature: <span class="dots"></span></p>
+              <div class="sign-line" data-sign="dispatched">
+                <div class="sign-line-head">
+                  <span>Signature:</span>
+                  <button type="button" data-clear-sign class="text-button">Clear</button>
+                </div>
+                <div class="sign-line-surface">
+                  <span class="sign-hint">Sign on the line</span>
+                  <canvas id="dispatchedSignature" width="720" height="140" aria-label="Dispatched by signature"></canvas>
+                </div>
+              </div>
               <p>Date: <span class="dots short"></span></p>
               <p class="certify">I certify that I have received the above items.</p>
               <label><span>Received by:</span><input name="receivedBy" class="waybill-line" /></label>
-              <div class="signature-heading">
-                <span>Signature:</span>
-                <button type="button" id="clearSignatureButton" class="text-button">Clear</button>
+              <div class="sign-box" data-sign="received">
+                <div class="signature-heading">
+                  <span>Signature:</span>
+                  <button type="button" id="clearSignatureButton" data-clear-sign class="text-button">Clear</button>
+                </div>
+                <canvas id="signatureCanvas" width="800" height="260" aria-label="Customer signature pad"></canvas>
               </div>
-              <canvas id="signatureCanvas" width="800" height="260" aria-label="Customer signature pad"></canvas>
               <p>Date: <span class="dots short"></span></p>
             </div>
           </div>
