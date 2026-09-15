@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#04150c" />
+    <meta name="description" content="Offline-first digital waybills for Safisana Ghana" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./assets/safiroute-icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css" />
+    <title>SafiRoute</title>
+  </head>
+  <body data-stage="setup">
+    <div class="atmosphere" aria-hidden="true">
+      <div class="aurora"></div>
+      <div class="orb orb-lime"></div>
+      <div class="orb orb-gold"></div>
+      <div class="orb orb-forest"></div>
+      <div class="orb orb-warm"></div>
+      <svg class="route" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <linearGradient id="routeGold" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0" stop-color="#ffc318" stop-opacity=".05"/>
+            <stop offset=".22" stop-color="#ffc318" stop-opacity=".7"/>
+            <stop offset=".62" stop-color="#83c900" stop-opacity=".55"/>
+            <stop offset="1" stop-color="#ffc318" stop-opacity=".08"/>
+          </linearGradient>
+        </defs>
+        <path class="route-track" pathLength="1000" d="M90 640 C 240 600, 280 420, 520 380 S 860 300, 1100 160"/>
+        <path class="route-trace" pathLength="1000" d="M90 640 C 240 600, 280 420, 520 380 S 860 300, 1100 160"/>
+        <circle class="route-node route-origin" cx="90" cy="640" r="8"/>
+        <circle class="route-node route-drop" cx="1100" cy="160" r="8"/>
+      </svg>
+      <div class="sheet sheet-a">
+        <span class="sheet-bar">No.</span>
+        <span class="sheet-line"></span>
+        <span class="sheet-line"></span>
+        <span class="sheet-line sheet-line-short"></span>
+      </div>
+      <div class="sheet sheet-b">
+        <span class="sheet-bar">No.</span>
+        <span class="sheet-line"></span>
+        <span class="sheet-line"></span>
+        <span class="sheet-line sheet-line-short"></span>
+      </div>
+      <div class="sheet sheet-c">
+        <span class="sheet-bar">No.</span>
+        <span class="sheet-line"></span>
+        <span class="sheet-line"></span>
+        <span class="sheet-line sheet-line-short"></span>
+      </div>
+      <div class="sheet sheet-d">
+        <span class="sheet-bar">No.</span>
+        <span class="sheet-line"></span>
+        <span class="sheet-line sheet-line-short"></span>
+      </div>
+      <canvas id="atmosphereCanvas" class="atmosphere-canvas"></canvas>
+      <div class="grain"></div>
+    </div>
+
+    <section id="lockScreen" class="gate" hidden>
+      <div class="gate-card">
+        <div class="wordmark">
+          <img src="./assets/safiroute-icon.svg" alt="" width="48" height="48" />
+          <span class="wordmark-text">
+            <strong>SafiRoute</strong>
+            <em>Every delivery. Verified.</em>
+          </span>
+        </div>
+        <p id="lockName" class="gate-name"></p>
+        <p id="lockRole" class="gate-role"></p>
+        <form id="unlockForm" class="gate-form">
+          <label id="pinUnlockLabel">Device PIN<input id="unlockPin" type="password" inputmode="numeric" maxlength="4" autocomplete="off" /></label>
+          <p id="lockError" class="gate-error" role="alert" aria-live="assertive" hidden></p>
+          <button class="primary" type="submit">Unlock pad</button>
+        </form>
+      </div>
+    </section>
+
+    <section id="setupScreen" class="gate setup" hidden>
+      <div class="gate-card">
+        <div class="wordmark">
+          <img src="./assets/safiroute-icon.svg" alt="" width="48" height="48" />
+          <span class="wordmark-text">
+            <strong>SafiRoute</strong>
+            <em>Safisana Ghana · Sales waybill</em>
+          </span>
+        </div>
+        <h1>Your name on the pad</h1>
+        <p class="gate-copy">This is not a login. There is no password and no Safisana account yet. Type your name so Authorised by is already filled when a customer buys compost.</p>
+        <form id="setupForm" class="stack-form">
+          <label>Your name<input id="setupName" name="operatorName" required autocomplete="name" placeholder="e.g. Ama Boateng" /></label>
+          <button class="primary" type="submit">Open the pad</button>
+        </form>
+      </div>
+    </section>
+
+    <div id="appShell" hidden>
+      <header class="topbar">
+        <div class="wordmark wordmark-light">
+          <img src="./assets/safiroute-icon.svg" alt="" width="36" height="36" />
+          <span class="wordmark-text">
+            <strong>SafiRoute</strong>
+            <em>Sales waybill</em>
+          </span>
+        </div>
+        <div class="topbar-meta">
+          <p id="headerOperator" class="operator-name"></p>
+          <div id="connectionBadge" class="connection" aria-live="polite">Checking connection…</div>
+        </div>
+      </header>
+
+      <main id="waybillsView" class="shell">
+        <section class="dash">
+          <div>
+            <p id="greeting" class="eyebrow">SAFISANA GHANA</p>
+            <h1 id="homeTitle">Waybills</h1>
+            <p id="homeSubtitle" class="lede">Saved on this device.</p>
+          </div>
+          <button id="newWaybillButton" class="primary glow">+ New waybill</button>
+        </section>
+
+        <p class="howto">When a customer buys compost, Sales fills this pad. Then Sales, Dispatch, and the customer each sign their line — the same parties as the paper book.</p>
+
+        <section class="summary" aria-label="Waybill summary">
+          <article><strong id="totalCount">0</strong><span>Total</span></article>
+          <article><strong id="draftCount">0</strong><span>Drafts</span></article>
+          <article><strong id="completedCount">0</strong><span>Completed</span></article>
+          <article><strong id="pendingCount">0</strong><span>Awaiting sync</span></article>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">ON THIS DEVICE</p>
+              <h2>Saved waybills</h2>
+            </div>
+            <div class="list-tools">
+              <label class="search-label">Search
+                <input id="waybillSearch" type="search" placeholder="Customer, vehicle, or number" autocomplete="off" />
+              </label>
+              <div class="filters" role="group" aria-label="Filter waybills">
+                <button type="button" class="chip active" data-filter="all" aria-pressed="true">All</button>
+                <button type="button" class="chip" data-filter="draft" aria-pressed="false">Drafts</button>
+                <button type="button" class="chip" data-filter="completed" aria-pressed="false">Completed</button>
+              </div>
+            </div>
+          </div>
+          <div id="emptyState" class="empty">
+            <div class="empty-icon" aria-hidden="true">
+              <svg viewBox="0 0 48 48" width="28" height="28" fill="none">
+                <rect x="9" y="6" width="30" height="36" rx="4" stroke="currentColor" stroke-width="2.2"/>
+                <path d="M16 16h16M16 23h16M16 30h10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                <circle cx="34" cy="34" r="9" fill="#83c900"/>
+                <path d="m31 34 2.2 2.2 4.4-5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <h3>No waybills yet</h3>
+            <p>Open a pad when a customer comes to buy compost. Sales, Dispatch, and the customer sign on this sheet.</p>
+          </div>
+          <div id="waybillList" class="waybill-list"></div>
+        </section>
+      </main>
+
+      <main id="settingsView" class="shell settings" hidden>
+        <header class="settings-masthead">
+          <p class="eyebrow">THIS PHONE</p>
+          <h1>Settings</h1>
+        </header>
+
+        <section class="settings-group" aria-label="Sales person">
+          <div class="settings-row settings-row-identity">
+            <div id="settingsAvatar" class="settings-avatar" aria-hidden="true">S</div>
+            <div class="settings-copy">
+              <p id="settingsHeroName" class="settings-title">Sales person</p>
+              <p id="settingsHeroMeta" class="settings-subtitle">Name used on Authorised by</p>
+            </div>
+            <p id="deviceStats" class="settings-value">0 waybills</p>
+          </div>
+        </section>
+
+        <h2 class="settings-section">Sales on this pad</h2>
+        <form id="settingsForm" class="settings-group">
+          <details class="settings-disclose">
+            <summary><span class="settings-row">
+              <span class="settings-icon settings-icon-forest" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="3.2"/><path d="M6.2 18.2c1.2-2.6 3.2-4 5.8-4s4.6 1.4 5.8 4"/></svg>
+              </span>
+              <span class="settings-copy"><span class="settings-title">Name</span></span>
+              <span id="settingsNameValue" class="settings-value">—</span>
+              <span class="settings-chevron" aria-hidden="true"></span>
+            </span></summary>
+            <div class="settings-editor">
+              <label>Name on Authorised by<input id="settingsName" name="operatorName" required autocomplete="name" /></label>
+            </div>
+          </details>
+          <details class="settings-disclose">
+            <summary><span class="settings-row">
+              <span class="settings-icon settings-icon-lime" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4.8h2.2l1.1 2.6-1.4 1.1a11 11 0 0 0 5.6 5.6l1.1-1.4 2.6 1.1V16c0 1.2-1 2.2-2.2 2.2C9.8 18.2 5.8 14.2 5.8 7A2.2 2.2 0 0 1 8 4.8Z"/></svg>
+              </span>
+              <span class="settings-copy"><span class="settings-title">Phone</span></span>
+              <span id="settingsPhoneValue" class="settings-value">Not set</span>
+              <span class="settings-chevron" aria-hidden="true"></span>
+            </span></summary>
+            <div class="settings-editor">
+              <label>Phone on this pad<input id="settingsPhone" name="phone" inputmode="tel" autocomplete="tel" placeholder="Optional — this phone only" /></label>
+            </div>
+          </details>
+          <details class="settings-disclose">
+            <summary><span class="settings-row">
+              <span class="settings-icon settings-icon-gold" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16.5V9.2h11.2l3.3 3.3V16.5"/><path d="M4 16.5h16M7.2 16.5a1.7 1.7 0 1 0 0 3.4 1.7 1.7 0 0 0 0-3.4Zm9.4 0a1.7 1.7 0 1 0 0 3.4 1.7 1.7 0 0 0 0-3.4Z"/><path d="M4 12.2h7.2"/></svg>
+              </span>
+              <span class="settings-copy"><span class="settings-title">Usual vehicle</span></span>
+              <span id="settingsVehicleValue" class="settings-value">Not set</span>
+              <span class="settings-chevron" aria-hidden="true"></span>
+            </span></summary>
+            <div class="settings-editor">
+              <label>Usual vehicle<input id="settingsVehicle" name="vehicleNumber" autocapitalize="characters" placeholder="Optional — pre-fills Vehicle" /></label>
+            </div>
+          </details>
+          <details class="settings-disclose" id="settingsSignatureDetails">
+            <summary><span class="settings-row">
+              <span class="settings-icon settings-icon-forest" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.2h16"/><path d="M14.4 5.2 18.8 9.6 9 19.4H4.6V15Z"/></svg>
+              </span>
+              <span class="settings-copy"><span class="settings-title">Signature</span></span>
+              <span class="settings-sign-meta">
+                <img id="settingsSignatureThumb" class="settings-sign-thumb" alt="" hidden />
+                <span id="settingsSignatureValue" class="settings-value">Not saved</span>
+              </span>
+              <span class="settings-chevron" aria-hidden="true"></span>
+            </span></summary>
+            <div class="settings-editor">
+              <div class="sign-line settings-sign" data-sign="sales">
+                <div class="sign-line-head">
+                  <span>Authorised-by mark</span>
+                  <button type="button" data-clear-sign class="text-button">Clear</button>
+                </div>
+                <div class="sign-line-surface">
+                  <span class="sign-hint">Sign here</span>
+                  <canvas id="salesSignature" width="720" height="140" tabindex="0" aria-label="Saved sales signature"></canvas>
+                </div>
+              </div>
+              <p class="settings-hint">Sign once. New waybills start with this mark.</p>
+            </div>
+          </details>
+          <div class="settings-row settings-row-commit">
+            <span class="settings-copy">
+              <span class="settings-title">Sales details</span>
+              <span class="settings-subtitle">Stored on this phone only</span>
+            </span>
+            <button class="settings-primary" type="submit">Save</button>
+          </div>
+          <p id="settingsNotice" class="notice settings-notice" role="status" aria-live="polite" hidden></p>
+        </form>
+        <p class="settings-foot">Filled on Authorised by when a customer buys compost. There is still no Safisana company login.</p>
+
+        <h2 class="settings-section">Phone lock</h2>
+        <form id="pinForm" class="settings-group">
+          <div class="settings-row">
+            <span class="settings-icon settings-icon-gold" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="6" y="10.5" width="12" height="9" rx="2"/><path d="M8.4 10.5V8.2a3.6 3.6 0 0 1 7.2 0v2.3"/></svg>
+            </span>
+            <span class="settings-copy"><span class="settings-title">PIN</span></span>
+            <span id="pinStatusValue" class="settings-value">Off</span>
+          </div>
+          <details class="settings-disclose" id="settingsPinDetails">
+            <summary><span class="settings-row">
+              <span class="settings-icon settings-icon-forest" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="4.5" width="14" height="15" rx="2"/><path d="M9 8h.01M12 8h.01M15 8h.01M9 12h.01M12 12h.01M15 12h.01M10.5 16h3"/></svg>
+              </span>
+              <span class="settings-copy"><span id="settingsPinTitle" class="settings-title">Set PIN</span></span>
+              <span class="settings-chevron" aria-hidden="true"></span>
+            </span></summary>
+            <div class="settings-editor">
+              <label>New 4-digit PIN<input id="settingsPin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="1234" /></label>
+              <label>Confirm PIN<input id="settingsPinConfirm" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" /></label>
+            </div>
+          </details>
+          <div class="settings-row settings-row-commit">
+            <span class="settings-copy">
+              <span class="settings-title">Lock this pad</span>
+              <span class="settings-subtitle">Optional 4-digit PIN</span>
+            </span>
+            <button id="pinSaveButton" class="settings-primary" type="submit">Save PIN</button>
+          </div>
+          <button id="removePinButton" type="button" class="settings-row settings-row-quiet" hidden>
+            <span class="settings-icon settings-icon-mute" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 10.5V8.2a4 4 0 0 1 8 0"/><rect x="6" y="10.5" width="12" height="9" rx="2"/><path d="M9 15h6"/></svg>
+            </span>
+            <span class="settings-copy"><span class="settings-title">Remove PIN</span></span>
+          </button>
+          <button id="logoutButton" type="button" class="settings-row settings-row-danger" hidden>
+            <span class="settings-icon settings-icon-danger" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 7.5V5.8A1.8 1.8 0 0 1 11.8 4h6.4A1.8 1.8 0 0 1 20 5.8v12.4A1.8 1.8 0 0 1 18.2 20h-6.4A1.8 1.8 0 0 1 10 18.2v-1.7"/><path d="M4 12h10M7.2 8.8 4 12l3.2 3.2"/></svg>
+            </span>
+            <span class="settings-copy"><span class="settings-title">Lock pad now</span></span>
+          </button>
+          <p id="pinNotice" class="notice settings-notice" role="status" aria-live="polite" hidden></p>
+        </form>
+        <p id="pinStatus" class="settings-foot">No PIN. Anyone with this phone can open the pad.</p>
+
+        <h2 class="settings-section">Data</h2>
+        <section class="settings-group" aria-label="Backup">
+          <button id="exportButton" type="button" class="settings-row">
+            <span class="settings-icon settings-icon-forest" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.8v9.4"/><path d="m8.4 8.2 3.6-3.4 3.6 3.4"/><path d="M6 14.8v3.4A1.8 1.8 0 0 0 7.8 20h8.4A1.8 1.8 0 0 0 18 18.2v-3.4"/></svg>
+            </span>
+            <span class="settings-copy"><span class="settings-title">Export backup</span></span>
+          </button>
+          <button id="importButton" type="button" class="settings-row">
+            <span class="settings-icon settings-icon-lime" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 14.2V4.8"/><path d="m8.4 10.8 3.6 3.4 3.6-3.4"/><path d="M6 14.8v3.4A1.8 1.8 0 0 0 7.8 20h8.4A1.8 1.8 0 0 0 18 18.2v-3.4"/></svg>
+            </span>
+            <span class="settings-copy">
+              <span class="settings-title">Restore backup</span>
+              <span id="backupMeta" class="settings-subtitle">Waybills live only in this browser</span>
+            </span>
+          </button>
+          <input id="importBackup" type="file" accept="application/json,.json" hidden />
+          <p id="dataNotice" class="notice settings-notice" role="status" aria-live="polite" hidden></p>
+        </section>
+        <p class="settings-foot">Keep a copy off this phone before clearing browser data.</p>
+
+        <h2 class="settings-section">App</h2>
+        <section class="settings-group" aria-label="App">
+          <button id="installButton" type="button" class="settings-row" hidden>
+            <span class="settings-icon settings-icon-gold" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4.5" width="12" height="15" rx="2"/><path d="M9.5 8h5M9.5 12h5M9.5 16h3"/></svg>
+            </span>
+            <span class="settings-copy">
+              <span class="settings-title">Install SafiRoute</span>
+              <span class="settings-subtitle">Home screen, works offline</span>
+            </span>
+          </button>
+          <div id="iosInstallHint" class="settings-row">
+            <span class="settings-icon settings-icon-gold" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.8v9.4"/><path d="m8.4 8.2 3.6-3.4 3.6 3.4"/><rect x="6" y="12.5" width="12" height="7" rx="1.6"/></svg>
+            </span>
+            <span class="settings-copy">
+              <span class="settings-title">Add to Home Screen</span>
+              <span class="settings-subtitle">iPhone: Share → Add to Home Screen</span>
+            </span>
+          </div>
+          <div class="settings-row">
+            <span class="settings-icon settings-icon-mute" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="7.2"/><path d="M12 11.2V16M12 8.2h.01" stroke-linecap="round"/></svg>
+            </span>
+            <span class="settings-copy">
+              <span class="settings-title">About</span>
+              <span class="settings-subtitle">Safisana Ghana · Every delivery. Verified.</span>
+            </span>
+            <span class="settings-value">v0.1</span>
+          </div>
+        </section>
+        <p class="settings-foot">Compost sales waybill. Chrome may offer Install above. Server accounts are not on this phone yet.</p>
+      </main>
+
+      <nav id="appNav" class="app-nav" aria-label="App">
+        <button type="button" class="nav-btn active" data-view="waybills" aria-current="page">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <rect x="5" y="3.5" width="14" height="17" rx="2"/>
+            <path d="M8.5 8.5h7M8.5 12.5h7M8.5 16.5h4"/>
+          </svg>
+          Waybills
+        </button>
+        <button type="button" class="nav-btn" data-view="settings">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 4.5v1.4M12 18.1V19.5M4.5 12h1.4M18.1 12H19.5M6.4 6.4l1 1M16.6 16.6l1 1M17.6 6.4l-1 1M7.4 16.6l-1 1"/>
+          </svg>
+          Settings
+        </button>
+      </nav>
+    </div>
+
+    <dialog id="waybillDialog" aria-labelledby="dialogTitle">
+      <form id="waybillForm" method="dialog">
+        <div class="pad-toolbar">
+          <p id="dialogTitle" class="pad-toolbar-title">New waybill</p>
+          <button type="button" id="closeDialogButton" class="icon-button" aria-label="Close">×</button>
+        </div>
+        <div id="formNotice" class="notice" role="status" aria-live="polite" hidden></div>
+
+        <article class="waybill-pad">
+          <header class="pad-header">
+            <div class="pad-brand">
+              <div class="waybill-mark" aria-hidden="true"></div>
+              <div>
+                <p class="pad-safisana">Safisana</p>
+                <p class="pad-title">WAYBILL</p>
+              </div>
+            </div>
+            <div class="pad-number">
+              <p>No.</p>
+              <p id="waybillNumber" class="pad-number-value"></p>
+            </div>
+            <address class="pad-address">
+              <b>Safisana Ghana Limited</b><br />
+              P.O. Box CT 8312, Cantonments<br />
+              Accra, Ghana<br />
+              +233 (302) 972380<br />
+              +233 (302) 972378<br />
+              invoice-gh@safisana.org<br />
+              www.safisana.org
+            </address>
+          </header>
+
+          <div class="pad-fields">
+            <label><span>Deliver to:</span><input name="customerName" class="waybill-line" autocomplete="organization" /></label>
+            <label><span>Date:</span><input name="documentDate" class="waybill-line" type="date" /></label>
+            <label><span>Delivery Contact Name:</span><input name="contactName" class="waybill-line" autocomplete="name" /></label>
+            <label><span>Contact Phone:</span><input name="customerPhone" class="waybill-line" inputmode="tel" autocomplete="tel" /></label>
+            <label class="wide"><span>Address:</span><input name="deliveryAddress" class="waybill-line" /></label>
+          </div>
+
+          <table class="waybill-grid">
+            <thead>
+              <tr>
+                <th class="col-desc">Description</th>
+                <th class="col-qty">Qty</th>
+                <th>Remarks</th>
+              </tr>
+            </thead>
+            <tbody id="itemRows"></tbody>
+          </table>
+          <button type="button" id="addLineButton" class="text-button add-line">Add another line</button>
+
+          <div class="pad-footer">
+            <div class="pad-col">
+              <label><span>Authorised by:<em class="party">Sales</em></span><input name="authorisedBy" class="waybill-line" /></label>
+              <div class="sign-line" data-sign="authorised">
+                <div class="sign-line-head">
+                  <span>Signature:</span>
+                  <button type="button" data-clear-sign class="text-button">Clear</button>
+                </div>
+                <div class="sign-line-surface">
+                  <span class="sign-hint">Sign on the line</span>
+                  <canvas id="authorisedSignature" width="720" height="140" tabindex="0" aria-label="Authorised by signature"></canvas>
+                </div>
+              </div>
+              <p>Date: <span class="dots short"></span></p>
+              <label><span>Remarks:</span><input name="authorisedRemarks" class="waybill-line" /></label>
+            </div>
+            <div class="pad-col">
+              <label><span>Dispatched by:<em class="party">Dispatch</em></span><input name="driverName" class="waybill-line" autocomplete="name" /></label>
+              <label><span>Vehicle:</span><input name="vehicleNumber" class="waybill-line" autocapitalize="characters" /></label>
+              <div class="sign-line" data-sign="dispatched">
+                <div class="sign-line-head">
+                  <span>Signature:</span>
+                  <button type="button" data-clear-sign class="text-button">Clear</button>
+                </div>
+                <div class="sign-line-surface">
+                  <span class="sign-hint">Sign on the line</span>
+                  <canvas id="dispatchedSignature" width="720" height="140" tabindex="0" aria-label="Dispatched by signature"></canvas>
+                </div>
+              </div>
+              <p>Date: <span class="dots short"></span></p>
+              <p class="certify">I certify that I have received the above items.</p>
+              <label><span>Received by:<em class="party">Customer</em></span><input name="receivedBy" class="waybill-line" /></label>
+              <div class="sign-line" data-sign="received">
+                <div class="sign-line-head">
+                  <span>Signature:</span>
+                  <button type="button" id="clearSignatureButton" data-clear-sign class="text-button">Clear</button>
+                </div>
+                <div class="sign-line-surface">
+                  <span class="sign-hint">Sign on the line</span>
+                  <canvas id="signatureCanvas" width="720" height="140" tabindex="0" aria-label="Received by signature"></canvas>
+                </div>
+              </div>
+              <p>Date: <span class="dots short"></span></p>
+            </div>
+          </div>
+
+          <div class="pad-evidence">
+            <p class="pad-evidence-label">Field proof (kept on this phone)</p>
+            <div class="evidence-row">
+              <button type="button" id="gpsButton" class="secondary">Capture GPS</button>
+              <span id="gpsStatus" role="status" aria-live="polite">No location captured</span>
+            </div>
+            <label class="wide photo-label">Delivery photo<input id="photoInput" name="photoInput" type="file" accept="image/*" capture="environment" /></label>
+            <img id="photoPreview" class="photo-preview" alt="Delivery evidence preview" hidden />
+          </div>
+        </article>
+
+        <div class="form-actions">
+          <button type="button" id="deleteButton" class="danger" hidden>Delete</button>
+          <button type="button" id="copyWaybillButton" class="secondary">Copy as new</button>
+          <button type="button" id="printButton" class="secondary">Print</button>
+          <span class="spacer"></span>
+          <button type="button" id="saveDraftButton" class="secondary">Save draft</button>
+          <button type="button" id="completeButton" class="primary">Complete waybill</button>
+        </div>
+      </form>
+    </dialog>
+
+    <template id="itemRowTemplate">
+      <tr>
+        <td><input data-item="description" /></td>
+        <td><input data-item="qty" type="number" min="0" step="0.01" inputmode="decimal" /></td>
+        <td><input data-item="remarks" /></td>
+      </tr>
+    </template>
+
+    <template id="waybillTemplate">
+      <article class="waybill-card">
+        <div class="card-top">
+          <div><strong data-field="number"></strong><span data-field="customerName"></span></div>
+          <span data-field="status" class="status"></span>
+        </div>
+        <dl>
+          <div><dt>Description</dt><dd data-field="product"></dd></div>
+          <div><dt>Vehicle</dt><dd data-field="vehicle"></dd></div>
+          <div><dt>Updated</dt><dd data-field="updated"></dd></div>
+          <div><dt>Sync</dt><dd data-field="sync"></dd></div>
+        </dl>
+        <div class="card-actions">
+          <button class="card-action" data-open>Open</button>
+          <button class="card-copy" type="button" data-copy>Copy</button>
+        </div>
+      </article>
+    </template>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

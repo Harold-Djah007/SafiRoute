@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">SafiRoute</title>
+  <desc id="desc">A verified waybill connected by a delivery route</desc>
+  <rect width="512" height="512" rx="112" fill="#075b38"/>
+  <path d="M138 92h176l72 72v175c0 31-25 56-56 56H138c-31 0-56-25-56-56V148c0-31 25-56 56-56Z" fill="#fff"/>
+  <path d="M314 92v72h72" fill="#dff0d9"/>
+  <path d="M143 201h131M143 252h90" fill="none" stroke="#075b38" stroke-width="24" stroke-linecap="round"/>
+  <path d="M119 339c58-49 94 22 147-22 30-25 47-57 86-45" fill="none" stroke="#ffc318" stroke-width="28" stroke-linecap="round"/>
+  <circle cx="119" cy="339" r="25" fill="#83c900" stroke="#fff" stroke-width="10"/>
+  <circle cx="366" cy="276" r="76" fill="#83c900" stroke="#fff" stroke-width="12"/>
+  <path d="m327 278 27 29 53-64" fill="none" stroke="#fff" stroke-width="25" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
