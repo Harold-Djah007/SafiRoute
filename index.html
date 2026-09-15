@@ -11,44 +11,131 @@
     <title>SafiRoute</title>
   </head>
   <body>
-    <header class="topbar">
-      <img src="./assets/safiroute-logo.png" alt="SafiRoute" class="brand" />
-      <div id="connectionBadge" class="connection" aria-live="polite">Checking connection…</div>
-    </header>
+    <section id="lockScreen" class="gate" hidden>
+      <img src="./assets/safiroute-logo.png" alt="SafiRoute" class="gate-logo" />
+      <p class="gate-tag">Every delivery. Verified.</p>
+      <p id="lockName" class="gate-name"></p>
+      <p id="lockRole" class="gate-role"></p>
+      <form id="unlockForm" class="gate-form">
+        <label id="pinUnlockLabel">Device PIN<input id="unlockPin" type="password" inputmode="numeric" maxlength="4" autocomplete="off" /></label>
+        <p id="lockError" class="gate-error" hidden></p>
+        <button class="primary" type="submit">Unlock</button>
+      </form>
+    </section>
 
-    <main class="shell">
-      <section class="hero">
-        <div>
-          <p class="eyebrow">SALES DELIVERY OPERATIONS</p>
-          <h1>Waybills that keep working.</h1>
-          <p>The same Safisana pad as the paper book — filled on the phone, even when the network disappears.</p>
+    <section id="setupScreen" class="gate setup" hidden>
+      <img src="./assets/safiroute-logo.png" alt="SafiRoute" class="gate-logo" />
+      <p class="gate-tag">Safisana Ghana · Field pad</p>
+      <h1>Set up this phone</h1>
+      <p class="gate-copy">Name the operator who uses this device. Waybills stay on the phone until server accounts are connected.</p>
+      <form id="setupForm" class="stack-form">
+        <label>Operator name<input id="setupName" name="operatorName" required autocomplete="name" /></label>
+        <label>Role
+          <select id="setupRole" name="role">
+            <option value="driver">Driver</option>
+            <option value="sales">Sales</option>
+            <option value="supervisor">Supervisor</option>
+          </select>
+        </label>
+        <label>Usual vehicle<input id="setupVehicle" name="vehicleNumber" autocapitalize="characters" placeholder="e.g. GT 100-26" /></label>
+        <label>4-digit PIN (optional)<input id="setupPin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" /></label>
+        <button class="primary" type="submit">Continue</button>
+      </form>
+    </section>
+
+    <div id="appShell" hidden>
+      <header class="topbar">
+        <div class="brand-block">
+          <img src="./assets/safiroute-logo.png" alt="SafiRoute" class="brand" />
+          <p class="brand-kicker">Field pad</p>
         </div>
-        <button id="newWaybillButton" class="primary">+ New waybill</button>
-      </section>
+        <div class="topbar-meta">
+          <p id="headerOperator" class="operator-name"></p>
+          <div id="connectionBadge" class="connection" aria-live="polite">Checking connection…</div>
+        </div>
+      </header>
 
-      <section class="summary" aria-label="Waybill summary">
-        <article><strong id="totalCount">0</strong><span>Total</span></article>
-        <article><strong id="draftCount">0</strong><span>Drafts</span></article>
-        <article><strong id="completedCount">0</strong><span>Completed</span></article>
-        <article><strong id="pendingCount">0</strong><span>Awaiting sync</span></article>
-      </section>
-
-      <section class="panel">
-        <div class="panel-heading">
+      <main id="waybillsView" class="shell">
+        <section class="dash">
           <div>
-            <p class="eyebrow">ON THIS DEVICE</p>
-            <h2>Saved waybills</h2>
+            <p id="greeting" class="eyebrow">SAFISANA GHANA</p>
+            <h1 id="homeTitle">Waybills</h1>
+            <p id="homeSubtitle" class="lede">Saved on this device.</p>
           </div>
-          <button id="exportButton" class="secondary">Export backup</button>
-        </div>
-        <div id="emptyState" class="empty">
-          <div class="empty-icon">✓</div>
-          <h3>No waybills yet</h3>
-          <p>Your offline drafts and completed deliveries will appear here.</p>
-        </div>
-        <div id="waybillList" class="waybill-list"></div>
-      </section>
-    </main>
+          <button id="newWaybillButton" class="primary">+ New waybill</button>
+        </section>
+
+        <section class="summary" aria-label="Waybill summary">
+          <article><strong id="totalCount">0</strong><span>Total</span></article>
+          <article><strong id="draftCount">0</strong><span>Drafts</span></article>
+          <article><strong id="completedCount">0</strong><span>Completed</span></article>
+          <article><strong id="pendingCount">0</strong><span>Awaiting sync</span></article>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">ON THIS DEVICE</p>
+              <h2>Saved waybills</h2>
+            </div>
+            <div class="filters" role="tablist" aria-label="Filter waybills">
+              <button type="button" class="chip active" data-filter="all">All</button>
+              <button type="button" class="chip" data-filter="draft">Drafts</button>
+              <button type="button" class="chip" data-filter="completed">Completed</button>
+            </div>
+          </div>
+          <div id="emptyState" class="empty">
+            <div class="empty-icon">✓</div>
+            <h3>No waybills yet</h3>
+            <p>Create a pad from the gold button. Drafts stay on this phone.</p>
+          </div>
+          <div id="waybillList" class="waybill-list"></div>
+        </section>
+      </main>
+
+      <main id="settingsView" class="shell settings" hidden>
+        <p class="eyebrow">THIS PHONE</p>
+        <h1>Settings</h1>
+        <p class="lede">Operator details fill the pad. Log out only locks this session — waybills are not deleted.</p>
+
+        <form id="settingsForm" class="stack-form panel settings-panel">
+          <h2>Operator</h2>
+          <label>Name<input id="settingsName" name="operatorName" required autocomplete="name" /></label>
+          <label>Role
+            <select id="settingsRole" name="role">
+              <option value="driver">Driver</option>
+              <option value="sales">Sales</option>
+              <option value="supervisor">Supervisor</option>
+            </select>
+          </label>
+          <label>Usual vehicle<input id="settingsVehicle" name="vehicleNumber" autocapitalize="characters" /></label>
+          <label>New 4-digit PIN<input id="settingsPin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="Leave blank to keep current" /></label>
+          <button class="primary" type="submit">Save settings</button>
+          <p id="settingsNotice" class="notice settings-notice" hidden></p>
+        </form>
+
+        <section class="panel settings-panel">
+          <h2>Device</h2>
+          <p class="muted">Export a JSON backup before clearing browser data. Server login is not connected on this pad yet.</p>
+          <div class="settings-actions">
+            <button id="exportButton" type="button" class="secondary">Export backup</button>
+            <button id="logoutButton" type="button" class="danger">Log out</button>
+          </div>
+        </section>
+
+        <section class="panel settings-panel about">
+          <h2>About</h2>
+          <p><b>SafiRoute</b> · Every delivery. Verified.</p>
+          <p>Safisana Ghana Limited · Field pad v0.1</p>
+          <p class="muted">Install from the browser menu (Add to Home Screen) for a full-screen phone app.</p>
+        </section>
+      </main>
+
+      <nav id="appNav" class="app-nav" aria-label="App">
+        <button type="button" class="nav-btn active" data-view="waybills">Waybills</button>
+        <button type="button" class="nav-btn" data-view="settings">Settings</button>
+      </nav>
+    </div>
 
     <dialog id="waybillDialog">
       <form id="waybillForm" method="dialog">

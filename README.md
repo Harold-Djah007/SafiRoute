@@ -20,6 +20,7 @@ SafiRoute is Safisana Ghana’s digital waybill and proof-of-delivery system. Th
 - Read-only protection after a delivery is completed
 - Pending-server-sync state that is honest about backend availability
 - JSON backup export
+- Operator setup, Settings page, and session lock / log out on this phone
 - Responsive phone and desktop layouts
 
 ## Important current limitations

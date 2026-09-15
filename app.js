@@ -1,11 +1,14 @@
 import { createEmptyWaybill, firstFilledItem, normalizeItems, summarizeWaybills, validateWaybill } from "./model.js";
-import { deleteWaybill, getWaybill, listWaybills, saveWaybill } from "./storage.js";
+import { deleteWaybill, getProfile, getWaybill, hashPin, listWaybills, saveProfile, saveWaybill } from "./storage.js";
 
 const state = { active: null, persisted: false };
+const SESSION = "safiroute.session";
 const dialog = document.querySelector("#waybillDialog");
 const form = document.querySelector("#waybillForm");
 const photoPreview = document.querySelector("#photoPreview");
 let autosaveTimer = null;
+let profile = null;
+let listFilter = "all";
 const pads = {};
 
 function $(selector) { return document.querySelector(selector); }
@@ -24,9 +27,79 @@ const PAD_FIELDS = [
   "receivedBy"
 ];
 
+function roleLabel(role) {
+  return { driver: "Driver", sales: "Sales", supervisor: "Supervisor" }[role] || "Operator";
+}
+
+function greeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function showGate(name) {
+  $("#setupScreen").hidden = name !== "setup";
+  $("#lockScreen").hidden = name !== "lock";
+  $("#appShell").hidden = name !== "app";
+}
+
+function unlockSession() {
+  sessionStorage.setItem(SESSION, "open");
+}
+
+function lockSession() {
+  sessionStorage.removeItem(SESSION);
+}
+
+function applyProfileDefaults(waybill) {
+  if (!profile?.operatorName) return waybill;
+  if (profile.role === "driver") {
+    waybill.driverName = profile.operatorName;
+    waybill.vehicleNumber = (profile.vehicleNumber || "").toUpperCase();
+  } else {
+    waybill.authorisedBy = profile.operatorName;
+    if (profile.vehicleNumber) waybill.vehicleNumber = profile.vehicleNumber.toUpperCase();
+  }
+  return waybill;
+}
+
+function renderChrome() {
+  if (!profile) return;
+  $("#headerOperator").textContent = profile.operatorName;
+  $("#greeting").textContent = `${greeting()}, ${profile.operatorName.split(" ")[0]}`;
+  $("#homeTitle").textContent = "Today's waybills";
+  $("#homeSubtitle").textContent = `${roleLabel(profile.role)}${profile.vehicleNumber ? ` · ${profile.vehicleNumber}` : ""} · saved on this device`;
+  $("#lockName").textContent = profile.operatorName;
+  $("#lockRole").textContent = roleLabel(profile.role);
+  const needsPin = Boolean(profile.pinHash);
+  $("#pinUnlockLabel").hidden = !needsPin;
+  $("#unlockPin").required = needsPin;
+  $("#settingsName").value = profile.operatorName;
+  $("#settingsRole").value = profile.role;
+  $("#settingsVehicle").value = profile.vehicleNumber || "";
+}
+
+async function enterApp() {
+  unlockSession();
+  showGate("app");
+  renderChrome();
+  setView("waybills");
+  await refreshList();
+}
+
+function setView(name) {
+  $("#waybillsView").hidden = name !== "waybills";
+  $("#settingsView").hidden = name !== "settings";
+  document.querySelectorAll(".nav-btn").forEach((button) => {
+    button.classList.toggle("active", button.dataset.view === name);
+  });
+}
+
 function setConnectionStatus() {
   const online = navigator.onLine;
   const badge = $("#connectionBadge");
+  if (!badge) return;
   badge.textContent = online ? "● Online" : "● Offline — device saving active";
   badge.classList.toggle("offline", !online);
 }
@@ -324,10 +397,13 @@ async function refreshList() {
   $("#draftCount").textContent = summary.drafts;
   $("#completedCount").textContent = summary.completed;
   $("#pendingCount").textContent = summary.pending;
-  $("#emptyState").hidden = items.length > 0;
+  const visible = listFilter === "all" ? items : items.filter((item) => item.status === listFilter);
+  $("#emptyState").hidden = visible.length > 0;
+  $("#emptyState h3").textContent = items.length ? "Nothing in this filter" : "No waybills yet";
+  $("#emptyState p").textContent = items.length ? "Try All to see every pad on this phone." : "Create a pad from the gold button. Drafts stay on this phone.";
   const list = $("#waybillList");
   list.replaceChildren();
-  for (const item of items) {
+  for (const item of visible) {
     const card = $("#waybillTemplate").content.cloneNode(true);
     card.querySelector('[data-field="number"]').textContent = item.number;
     card.querySelector('[data-field="customerName"]').textContent = item.customerName || "Deliver to not entered";
@@ -347,7 +423,7 @@ async function refreshList() {
 }
 
 $("#newWaybillButton").addEventListener("click", () => {
-  populateForm(createEmptyWaybill());
+  populateForm(applyProfileDefaults(createEmptyWaybill()));
   dialog.showModal();
 });
 $("#closeDialogButton").addEventListener("click", async () => {
@@ -412,8 +488,87 @@ form.addEventListener("submit", (event) => event.preventDefault());
 form.addEventListener("input", scheduleAutosave);
 window.addEventListener("online", setConnectionStatus);
 window.addEventListener("offline", setConnectionStatus);
+
+document.querySelectorAll(".nav-btn").forEach((button) => {
+  button.addEventListener("click", () => setView(button.dataset.view));
+});
+document.querySelectorAll("[data-filter]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    listFilter = button.dataset.filter;
+    document.querySelectorAll("[data-filter]").forEach((chip) => chip.classList.toggle("active", chip === button));
+    await refreshList();
+  });
+});
+
+$("#setupForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const pin = $("#setupPin").value.trim();
+  profile = {
+    id: "profile",
+    operatorName: $("#setupName").value.trim(),
+    role: $("#setupRole").value,
+    vehicleNumber: $("#setupVehicle").value.trim().toUpperCase(),
+    pinHash: pin ? await hashPin(pin) : null,
+    updatedAt: new Date().toISOString()
+  };
+  await saveProfile(profile);
+  await enterApp();
+});
+
+$("#settingsForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const pin = $("#settingsPin").value.trim();
+  profile = {
+    ...profile,
+    operatorName: $("#settingsName").value.trim(),
+    role: $("#settingsRole").value,
+    vehicleNumber: $("#settingsVehicle").value.trim().toUpperCase(),
+    pinHash: pin ? await hashPin(pin) : profile.pinHash,
+    updatedAt: new Date().toISOString()
+  };
+  await saveProfile(profile);
+  $("#settingsPin").value = "";
+  renderChrome();
+  const notice = $("#settingsNotice");
+  notice.textContent = "Saved on this phone.";
+  notice.hidden = false;
+});
+
+$("#logoutButton").addEventListener("click", () => {
+  if (dialog.open) dialog.close();
+  lockSession();
+  $("#unlockPin").value = "";
+  $("#lockError").hidden = true;
+  renderChrome();
+  showGate("lock");
+});
+
+$("#unlockForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const error = $("#lockError");
+  error.hidden = true;
+  if (profile.pinHash) {
+    const ok = await hashPin($("#unlockPin").value.trim()) === profile.pinHash;
+    if (!ok) {
+      error.textContent = "That PIN does not match.";
+      error.hidden = false;
+      return;
+    }
+  }
+  $("#unlockPin").value = "";
+  await enterApp();
+});
+
 setConnectionStatus();
-await refreshList();
+profile = await getProfile();
+if (!profile?.operatorName) {
+  showGate("setup");
+} else if (sessionStorage.getItem(SESSION) !== "open") {
+  renderChrome();
+  showGate("lock");
+} else {
+  await enterApp();
+}
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("./sw.js").catch((error) => console.error("Service worker registration failed", error));
