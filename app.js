@@ -49,13 +49,15 @@ function renderItems(items, completed = false) {
   const body = $("#itemRows");
   const template = $("#itemRowTemplate");
   body.replaceChildren();
-  for (const item of items) {
+  items.forEach((item, index) => {
     const row = template.content.cloneNode(true);
-    row.querySelector('[data-item="description"]').value = item.description || "";
+    const description = row.querySelector('[data-item="description"]');
+    description.value = item.description || "";
+    if (index === 0) description.placeholder = "e.g. Fortifer Organic Fertilizer 50kg";
     row.querySelector('[data-item="qty"]').value = item.qty || "";
     row.querySelector('[data-item="remarks"]').value = item.remarks || "";
     body.append(row);
-  }
+  });
   body.querySelectorAll("input").forEach((element) => { element.disabled = completed; });
 }
 
