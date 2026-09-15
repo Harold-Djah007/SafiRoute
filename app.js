@@ -254,7 +254,7 @@ function clearCanvas(markDirty = false) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.lineWidth = 5;
-  ctx.strokeStyle = "#16324a";
+  ctx.strokeStyle = "#1a3a28";
   state.signatureDirty = markDirty;
   state.signaturePresent = false;
 }
