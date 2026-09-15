@@ -71,18 +71,30 @@ function renderChrome() {
   $("#pinStatus").textContent = needsPin
     ? "PIN is on. Lock the pad when you step away from this phone."
     : "No PIN. Anyone with this phone can open the pad.";
+  const pinValue = $("#pinStatusValue");
+  pinValue.textContent = needsPin ? "On" : "Off";
+  pinValue.classList.toggle("is-on", needsPin);
+  $("#settingsPinTitle").textContent = needsPin ? "Change PIN" : "Set PIN";
   $("#settingsName").value = profile.operatorName;
   $("#settingsPhone").value = profile.phone || "";
   $("#settingsVehicle").value = profile.vehicleNumber || "";
+  $("#settingsNameValue").textContent = profile.operatorName;
+  $("#settingsPhoneValue").textContent = profile.phone || "Not set";
+  $("#settingsVehicleValue").textContent = profile.vehicleNumber || "Not set";
+  $("#settingsSignatureValue").textContent = profile.authorisedSignature ? "Saved" : "Not saved";
   $("#settingsHeroName").textContent = profile.operatorName;
-  $("#settingsHeroMeta").textContent = profile.phone
-    ? `${profile.phone} · Sales on this phone`
-    : "Name used on Authorised by";
+  $("#settingsHeroMeta").textContent = profile.phone || "Name used on Authorised by";
   $("#settingsAvatar").textContent = initials(profile.operatorName);
   if (pads.sales) pads.sales.load(profile.authorisedSignature);
   $("#backupMeta").textContent = profile.lastBackupAt
-    ? `Last backup exported ${formatDate(profile.lastBackupAt)}.`
-    : "Waybills live only in this browser until you export a file.";
+    ? `Last backup ${formatDate(profile.lastBackupAt)}`
+    : "Waybills live only in this browser";
+}
+
+function closeSettingsEditors(root) {
+  root.querySelectorAll("details.settings-disclose").forEach((block) => {
+    block.open = false;
+  });
 }
 
 function prefersReducedMotion() {
@@ -620,7 +632,7 @@ async function refreshList() {
   $("#emptyState p").textContent = items.length
     ? (listQuery ? "No waybill matches that search." : "Try All to see every pad on this phone.")
     : "Open a pad when a customer comes to buy compost. Sales, Dispatch, and the customer sign on this sheet.";
-  $("#deviceStats").textContent = `${summary.total} waybill${summary.total === 1 ? "" : "s"} on this phone`;
+  $("#deviceStats").textContent = `${summary.total} waybill${summary.total === 1 ? "" : "s"}`;
   const list = $("#waybillList");
   list.replaceChildren();
   visible.forEach((item, index) => {
@@ -716,7 +728,7 @@ $("#exportButton").addEventListener("click", async () => {
   profile = { ...profile, lastBackupAt: exportedAt, updatedAt: exportedAt };
   await saveProfile(profile);
   renderChrome();
-  showSettingsNotice("#settingsNotice", "Backup file saved. Keep it off this phone.");
+  showSettingsNotice("#dataNotice", "Backup file saved. Keep it off this phone.");
 });
 
 $("#importButton").addEventListener("click", () => $("#importBackup").click());
@@ -743,9 +755,9 @@ $("#importBackup").addEventListener("change", async (event) => {
     }
     renderChrome();
     await refreshList();
-    showSettingsNotice("#settingsNotice", `Restored ${merged.added} new, ${merged.updated} updated, ${merged.skipped} unchanged.`);
+    showSettingsNotice("#dataNotice", `Restored ${merged.added} new, ${merged.updated} updated, ${merged.skipped} unchanged.`);
   } catch (error) {
-    showSettingsNotice("#settingsNotice", error.message);
+    showSettingsNotice("#dataNotice", error.message);
   }
 });
 
@@ -767,6 +779,13 @@ document.querySelectorAll("[data-filter]").forEach((button) => {
 $("#waybillSearch").addEventListener("input", async (event) => {
   listQuery = event.target.value.trim().toLowerCase();
   await refreshList();
+});
+
+document.querySelectorAll("#settingsView details.settings-disclose").forEach((block) => {
+  block.addEventListener("toggle", () => {
+    if (!block.open) return;
+    block.querySelector("input")?.focus();
+  });
 });
 
 $("#setupForm").addEventListener("submit", async (event) => {
@@ -799,6 +818,7 @@ $("#settingsForm").addEventListener("submit", async (event) => {
   };
   await saveProfile(profile);
   renderChrome();
+  closeSettingsEditors($("#settingsForm"));
   showSettingsNotice("#settingsNotice", "Sales details saved on this phone.");
 });
 
@@ -817,6 +837,7 @@ $("#pinForm").addEventListener("submit", async (event) => {
   $("#settingsPin").value = "";
   $("#settingsPinConfirm").value = "";
   renderChrome();
+  closeSettingsEditors($("#pinForm"));
   showSettingsNotice("#pinNotice", "PIN saved. Use Lock pad now when you step away.");
 });
 

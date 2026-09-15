@@ -44,7 +44,16 @@ test("atmosphere depicts waybill sheets and a delivery route", () => {
 
 test("service worker cache is bumped with the shell", () => {
   const source = fs.readFileSync(path.join(root, "sw.js"), "utf8");
-  assert.match(source, /safiroute-shell-v15/);
+  assert.match(source, /safiroute-shell-v16/);
+});
+
+test("settings is a grouped list, not stacked panels", () => {
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  assert.match(html, /class="settings-group"/);
+  assert.match(html, /class="settings-row settings-row-identity"/);
+  assert.match(html, /id=["']pinStatusValue["']/);
+  assert.doesNotMatch(html, /settings-hero panel/);
+  assert.doesNotMatch(html, /Save sales details/);
 });
 
 test("waybill dialog follows the Safisana paper pad", () => {

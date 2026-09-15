@@ -163,82 +163,181 @@
       </main>
 
       <main id="settingsView" class="shell settings" hidden>
-        <p class="eyebrow">THIS PHONE</p>
-        <h1>Settings</h1>
-        <p class="lede">Everything the sales pad needs on this device. There is still no Safisana company login.</p>
+        <header class="settings-masthead">
+          <p class="eyebrow">THIS PHONE</p>
+          <h1>Settings</h1>
+        </header>
 
-        <section class="settings-hero panel">
-          <div id="settingsAvatar" class="settings-avatar" aria-hidden="true">S</div>
-          <div>
-            <p id="settingsHeroName" class="settings-hero-name">Sales person</p>
-            <p id="settingsHeroMeta" class="muted">Name used on Authorised by</p>
+        <section class="settings-group" aria-label="Sales person">
+          <div class="settings-row settings-row-identity">
+            <div id="settingsAvatar" class="settings-avatar" aria-hidden="true">S</div>
+            <div class="settings-copy">
+              <p id="settingsHeroName" class="settings-title">Sales person</p>
+              <p id="settingsHeroMeta" class="settings-subtitle">Name used on Authorised by</p>
+            </div>
+            <p id="deviceStats" class="settings-value">0 waybills</p>
           </div>
-          <p id="deviceStats" class="settings-stat">0 waybills on this phone</p>
         </section>
 
-        <form id="settingsForm" class="stack-form panel settings-panel">
-          <p class="eyebrow">SALES PERSON</p>
-          <h2>Name on the pad</h2>
-          <p class="muted">Filled automatically on Authorised by when a customer buys compost.</p>
-          <label>Name<input id="settingsName" name="operatorName" required autocomplete="name" /></label>
-          <label>Phone<input id="settingsPhone" name="phone" inputmode="tel" autocomplete="tel" placeholder="Optional — for this phone only" /></label>
-          <label>Usual vehicle<input id="settingsVehicle" name="vehicleNumber" autocapitalize="characters" placeholder="Optional — pre-fills Vehicle on new pads" /></label>
-          <div class="sign-line settings-sign" data-sign="sales">
-            <div class="sign-line-head">
-              <span>Your Authorised-by signature</span>
-              <button type="button" data-clear-sign class="text-button">Clear</button>
+        <h2 class="settings-section">Sales on this pad</h2>
+        <form id="settingsForm" class="settings-group">
+          <details class="settings-disclose">
+            <summary><span class="settings-row">
+              <span class="settings-icon settings-icon-forest" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="3.2"/><path d="M6.2 18.2c1.2-2.6 3.2-4 5.8-4s4.6 1.4 5.8 4"/></svg>
+              </span>
+              <span class="settings-copy"><span class="settings-title">Name</span></span>
+              <span id="settingsNameValue" class="settings-value">—</span>
+              <span class="settings-chevron" aria-hidden="true"></span>
+            </span></summary>
+            <div class="settings-editor">
+              <label>Name on Authorised by<input id="settingsName" name="operatorName" required autocomplete="name" /></label>
             </div>
-            <p class="muted">Sign once. New waybills start with this mark; you can still change it on a sheet.</p>
-            <div class="sign-line-surface">
-              <span class="sign-hint">Sign here</span>
-              <canvas id="salesSignature" width="720" height="140" aria-label="Saved sales signature"></canvas>
+          </details>
+          <details class="settings-disclose">
+            <summary><span class="settings-row">
+              <span class="settings-icon settings-icon-lime" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4.8h2.2l1.1 2.6-1.4 1.1a11 11 0 0 0 5.6 5.6l1.1-1.4 2.6 1.1V16c0 1.2-1 2.2-2.2 2.2C9.8 18.2 5.8 14.2 5.8 7A2.2 2.2 0 0 1 8 4.8Z"/></svg>
+              </span>
+              <span class="settings-copy"><span class="settings-title">Phone</span></span>
+              <span id="settingsPhoneValue" class="settings-value">Not set</span>
+              <span class="settings-chevron" aria-hidden="true"></span>
+            </span></summary>
+            <div class="settings-editor">
+              <label>Phone on this pad<input id="settingsPhone" name="phone" inputmode="tel" autocomplete="tel" placeholder="Optional — this phone only" /></label>
             </div>
+          </details>
+          <details class="settings-disclose">
+            <summary><span class="settings-row">
+              <span class="settings-icon settings-icon-gold" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16.5V9.2h11.2l3.3 3.3V16.5"/><path d="M4 16.5h16M7.2 16.5a1.7 1.7 0 1 0 0 3.4 1.7 1.7 0 0 0 0-3.4Zm9.4 0a1.7 1.7 0 1 0 0 3.4 1.7 1.7 0 0 0 0-3.4Z"/><path d="M4 12.2h7.2"/></svg>
+              </span>
+              <span class="settings-copy"><span class="settings-title">Usual vehicle</span></span>
+              <span id="settingsVehicleValue" class="settings-value">Not set</span>
+              <span class="settings-chevron" aria-hidden="true"></span>
+            </span></summary>
+            <div class="settings-editor">
+              <label>Usual vehicle<input id="settingsVehicle" name="vehicleNumber" autocapitalize="characters" placeholder="Optional — pre-fills Vehicle" /></label>
+            </div>
+          </details>
+          <details class="settings-disclose" id="settingsSignatureDetails">
+            <summary><span class="settings-row">
+              <span class="settings-icon settings-icon-forest" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.2h16"/><path d="M14.4 5.2 18.8 9.6 9 19.4H4.6V15Z"/></svg>
+              </span>
+              <span class="settings-copy"><span class="settings-title">Signature</span></span>
+              <span id="settingsSignatureValue" class="settings-value">Not saved</span>
+              <span class="settings-chevron" aria-hidden="true"></span>
+            </span></summary>
+            <div class="settings-editor">
+              <div class="sign-line settings-sign" data-sign="sales">
+                <div class="sign-line-head">
+                  <span>Authorised-by mark</span>
+                  <button type="button" data-clear-sign class="text-button">Clear</button>
+                </div>
+                <div class="sign-line-surface">
+                  <span class="sign-hint">Sign here</span>
+                  <canvas id="salesSignature" width="720" height="140" aria-label="Saved sales signature"></canvas>
+                </div>
+              </div>
+              <p class="settings-hint">Sign once. New waybills start with this mark.</p>
+            </div>
+          </details>
+          <div class="settings-row settings-row-commit">
+            <span class="settings-copy">
+              <span class="settings-title">Sales details</span>
+              <span class="settings-subtitle">Stored on this phone only</span>
+            </span>
+            <button class="settings-primary" type="submit">Save</button>
           </div>
-          <button class="primary" type="submit">Save sales details</button>
           <p id="settingsNotice" class="notice settings-notice" hidden></p>
         </form>
+        <p class="settings-foot">Filled on Authorised by when a customer buys compost. There is still no Safisana company login.</p>
 
-        <form id="pinForm" class="stack-form panel settings-panel">
-          <p class="eyebrow">PHONE LOCK</p>
-          <h2>Optional PIN</h2>
-          <p id="pinStatus" class="muted">No PIN. Anyone with this phone can open the pad.</p>
-          <label>New 4-digit PIN<input id="settingsPin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="1234" /></label>
-          <label>Confirm PIN<input id="settingsPinConfirm" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" /></label>
-          <div class="settings-actions">
-            <button class="primary" type="submit">Save PIN</button>
-            <button id="removePinButton" type="button" class="secondary" hidden>Remove PIN</button>
-            <button id="logoutButton" type="button" class="danger" hidden>Lock pad now</button>
+        <h2 class="settings-section">Phone lock</h2>
+        <form id="pinForm" class="settings-group">
+          <div class="settings-row">
+            <span class="settings-icon settings-icon-gold" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="6" y="10.5" width="12" height="9" rx="2"/><path d="M8.4 10.5V8.2a3.6 3.6 0 0 1 7.2 0v2.3"/></svg>
+            </span>
+            <span class="settings-copy"><span class="settings-title">PIN</span></span>
+            <span id="pinStatusValue" class="settings-value">Off</span>
           </div>
+          <details class="settings-disclose">
+            <summary><span class="settings-row">
+              <span class="settings-icon settings-icon-forest" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="4.5" width="14" height="15" rx="2"/><path d="M9 8h.01M12 8h.01M15 8h.01M9 12h.01M12 12h.01M15 12h.01M10.5 16h3"/></svg>
+              </span>
+              <span class="settings-copy"><span id="settingsPinTitle" class="settings-title">Set PIN</span></span>
+              <span class="settings-chevron" aria-hidden="true"></span>
+            </span></summary>
+            <div class="settings-editor">
+              <label>New 4-digit PIN<input id="settingsPin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="1234" /></label>
+              <label>Confirm PIN<input id="settingsPinConfirm" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" /></label>
+              <button class="settings-primary" type="submit">Save PIN</button>
+            </div>
+          </details>
+          <button id="removePinButton" type="button" class="settings-row settings-row-quiet" hidden>
+            <span class="settings-icon settings-icon-mute" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 10.5V8.2a4 4 0 0 1 8 0"/><rect x="6" y="10.5" width="12" height="9" rx="2"/><path d="M9 15h6"/></svg>
+            </span>
+            <span class="settings-copy"><span class="settings-title">Remove PIN</span></span>
+          </button>
+          <button id="logoutButton" type="button" class="settings-row settings-row-danger" hidden>
+            <span class="settings-icon settings-icon-danger" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 7.5V5.8A1.8 1.8 0 0 1 11.8 4h6.4A1.8 1.8 0 0 1 20 5.8v12.4A1.8 1.8 0 0 1 18.2 20h-6.4A1.8 1.8 0 0 1 10 18.2v-1.7"/><path d="M4 12h10M7.2 8.8 4 12l3.2 3.2"/></svg>
+            </span>
+            <span class="settings-copy"><span class="settings-title">Lock pad now</span></span>
+          </button>
           <p id="pinNotice" class="notice settings-notice" hidden></p>
         </form>
+        <p id="pinStatus" class="settings-foot">No PIN. Anyone with this phone can open the pad.</p>
 
-        <section class="panel settings-panel">
-          <p class="eyebrow">BACKUP</p>
-          <h2>Keep copies off this phone</h2>
-          <p id="backupMeta" class="muted">Waybills live only in this browser until you export a file.</p>
-          <div class="settings-actions">
-            <button id="exportButton" type="button" class="secondary">Export backup</button>
-            <button id="importButton" type="button" class="secondary">Restore backup</button>
-            <input id="importBackup" type="file" accept="application/json,.json" hidden />
+        <h2 class="settings-section">Data</h2>
+        <section class="settings-group" aria-label="Backup">
+          <button id="exportButton" type="button" class="settings-row">
+            <span class="settings-icon settings-icon-forest" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.8v9.4"/><path d="m8.4 8.2 3.6-3.4 3.6 3.4"/><path d="M6 14.8v3.4A1.8 1.8 0 0 0 7.8 20h8.4A1.8 1.8 0 0 0 18 18.2v-3.4"/></svg>
+            </span>
+            <span class="settings-copy"><span class="settings-title">Export backup</span></span>
+          </button>
+          <button id="importButton" type="button" class="settings-row">
+            <span class="settings-icon settings-icon-lime" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 14.2V4.8"/><path d="m8.4 10.8 3.6 3.4 3.6-3.4"/><path d="M6 14.8v3.4A1.8 1.8 0 0 0 7.8 20h8.4A1.8 1.8 0 0 0 18 18.2v-3.4"/></svg>
+            </span>
+            <span class="settings-copy">
+              <span class="settings-title">Restore backup</span>
+              <span id="backupMeta" class="settings-subtitle">Waybills live only in this browser</span>
+            </span>
+          </button>
+          <input id="importBackup" type="file" accept="application/json,.json" hidden />
+          <p id="dataNotice" class="notice settings-notice" hidden></p>
+        </section>
+        <p class="settings-foot">Keep a copy off this phone before clearing browser data.</p>
+
+        <h2 class="settings-section">App</h2>
+        <section class="settings-group" aria-label="App">
+          <button id="installButton" type="button" class="settings-row" hidden>
+            <span class="settings-icon settings-icon-gold" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4.5" width="12" height="15" rx="2"/><path d="M9.5 8h5M9.5 12h5M9.5 16h3"/></svg>
+            </span>
+            <span class="settings-copy">
+              <span class="settings-title">Install SafiRoute</span>
+              <span class="settings-subtitle">Home screen, works offline</span>
+            </span>
+          </button>
+          <div class="settings-row">
+            <span class="settings-icon settings-icon-mute" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="7.2"/><path d="M12 11.2V16M12 8.2h.01" stroke-linecap="round"/></svg>
+            </span>
+            <span class="settings-copy">
+              <span class="settings-title">About</span>
+              <span class="settings-subtitle">Safisana Ghana · Every delivery. Verified.</span>
+            </span>
+            <span class="settings-value">v0.1</span>
           </div>
         </section>
-
-        <section class="panel settings-panel">
-          <p class="eyebrow">APP</p>
-          <h2>Install on the home screen</h2>
-          <p class="muted">Full-screen, works offline after the first open. On iPhone use Share → Add to Home Screen. On Android, Chrome can install it.</p>
-          <div class="settings-actions">
-            <button id="installButton" type="button" class="primary" hidden>Install SafiRoute</button>
-          </div>
-        </section>
-
-        <section class="panel settings-panel about">
-          <p class="eyebrow">ABOUT</p>
-          <h2>SafiRoute</h2>
-          <p><b>Every delivery. Verified.</b></p>
-          <p>Safisana Ghana Limited · Compost sales waybill v0.1</p>
-          <p class="muted">Offline pad for Sales. Server accounts and sync are not on this phone yet — export a backup before clearing browser data.</p>
-        </section>
+        <p class="settings-foot">On iPhone use Share → Add to Home Screen. Compost sales waybill. Server accounts are not on this phone yet.</p>
       </main>
 
       <nav id="appNav" class="app-nav" aria-label="App">
