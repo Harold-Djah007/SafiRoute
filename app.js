@@ -28,7 +28,7 @@ const PAD_FIELDS = [
 ];
 
 function roleLabel(role) {
-  return { driver: "Driver", sales: "Sales", supervisor: "Supervisor" }[role] || "Operator";
+  return { sales: "Sales", supervisor: "Supervisor", dispatch: "Dispatch", driver: "Dispatch" }[role] || "Sales";
 }
 
 function greeting() {
@@ -54,7 +54,7 @@ function lockSession() {
 
 function applyProfileDefaults(waybill) {
   if (!profile?.operatorName) return waybill;
-  if (profile.role === "driver") {
+  if (profile.role === "dispatch" || profile.role === "driver") {
     waybill.driverName = profile.operatorName;
     waybill.vehicleNumber = (profile.vehicleNumber || "").toUpperCase();
   } else {
@@ -68,15 +68,15 @@ function renderChrome() {
   if (!profile) return;
   $("#headerOperator").textContent = profile.operatorName;
   $("#greeting").textContent = `${greeting()}, ${profile.operatorName.split(" ")[0]}`;
-  $("#homeTitle").textContent = "Today's waybills";
-  $("#homeSubtitle").textContent = `${roleLabel(profile.role)}${profile.vehicleNumber ? ` · ${profile.vehicleNumber}` : ""} · saved on this device`;
+  $("#homeTitle").textContent = "Compost waybills";
+  $("#homeSubtitle").textContent = `${roleLabel(profile.role)} · walk-in compost sales on this phone`;
   $("#lockName").textContent = profile.operatorName;
   $("#lockRole").textContent = roleLabel(profile.role);
   const needsPin = Boolean(profile.pinHash);
   $("#pinUnlockLabel").hidden = !needsPin;
   $("#unlockPin").required = needsPin;
   $("#settingsName").value = profile.operatorName;
-  $("#settingsRole").value = profile.role;
+  $("#settingsRole").value = profile.role === "driver" ? "dispatch" : profile.role;
   $("#settingsVehicle").value = profile.vehicleNumber || "";
 }
 
@@ -197,7 +197,7 @@ function populateForm(waybill, persisted = false) {
   photoPreview.hidden = !waybill.photo;
   if (waybill.photo) photoPreview.src = waybill.photo;
   clearErrors();
-  showNotice(waybill.status === "completed" ? "This completed record is stored on this device and awaiting the future server sync service." : "Changes are saved locally on this device.");
+  showNotice(waybill.status === "completed" ? "This compost sale is stored on this phone until server sync is connected." : "Fill the sale, then Sales, Dispatch, and the customer sign. Changes save on this phone.");
 }
 
 function showNotice(message) {
@@ -400,7 +400,7 @@ async function refreshList() {
   const visible = listFilter === "all" ? items : items.filter((item) => item.status === listFilter);
   $("#emptyState").hidden = visible.length > 0;
   $("#emptyState h3").textContent = items.length ? "Nothing in this filter" : "No waybills yet";
-  $("#emptyState p").textContent = items.length ? "Try All to see every pad on this phone." : "Create a pad from the gold button. Drafts stay on this phone.";
+  $("#emptyState p").textContent = items.length ? "Try All to see every pad on this phone." : "Open a pad when a customer comes to buy compost. Sales, Dispatch, and the customer sign on this sheet.";
   const list = $("#waybillList");
   list.replaceChildren();
   for (const item of visible) {

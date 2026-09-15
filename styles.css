@@ -64,6 +64,10 @@ button { cursor: pointer; }
 .dash { display: flex; align-items: end; justify-content: space-between; gap: 24px; }
 .dash h1 { margin: 3px 0 0; font-size: clamp(1.8rem, 4vw, 2.4rem); letter-spacing: -.04em; }
 .lede { margin: 4px 0 0; max-width: 520px; color: var(--muted); }
+.howto {
+  margin: 16px 0 0; padding: 12px 14px; border-radius: 14px;
+  background: #eef6ef; color: var(--green-900); font-size: .88rem; font-weight: 650; line-height: 1.45;
+}
 .eyebrow { margin: 0; font-size: .72rem; letter-spacing: .16em; font-weight: 900; color: var(--green-700); }
 
 .primary, .secondary, .danger { min-height: 44px; padding: 10px 17px; border-radius: 12px; border: 0; font-weight: 800; }
@@ -166,6 +170,7 @@ input:focus, textarea:focus, select:focus { outline: 3px solid rgba(131,201,0,.2
   color: var(--pad-ink); font-size: .86rem; font-weight: 600;
 }
 .waybill-pad label > span { flex: 0 0 auto; white-space: nowrap; color: var(--pad-ink); }
+.party { margin-left: 6px; font-style: normal; font-weight: 600; font-size: .72rem; color: var(--pad-muted); }
 .waybill-line {
   flex: 1; min-width: 0; min-height: 36px; padding: 4px 2px 2px;
   border: 0; border-bottom: 1px dotted var(--pad-rule); border-radius: 0;
@@ -230,7 +235,7 @@ input:focus, textarea:focus, select:focus { outline: 3px solid rgba(131,201,0,.2
 .settings-panel { margin-top: 16px; }
 .settings-panel h2 { margin: 0 0 10px; font-size: 1.05rem; }
 .settings-notice { margin: 0; }
-.settings-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.settings-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; padding-bottom: 12px; }
 .muted { color: var(--muted); margin: 0 0 8px; }
 #appShell[hidden],
 #waybillsView[hidden],

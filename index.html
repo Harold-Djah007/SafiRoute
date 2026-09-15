@@ -25,19 +25,19 @@
 
     <section id="setupScreen" class="gate setup" hidden>
       <img src="./assets/safiroute-logo.png" alt="SafiRoute" class="gate-logo" />
-      <p class="gate-tag">Safisana Ghana · Field pad</p>
+      <p class="gate-tag">Safisana Ghana · Sales waybill</p>
       <h1>Set up this phone</h1>
-      <p class="gate-copy">Name the operator who uses this device. Waybills stay on the phone until server accounts are connected.</p>
+      <p class="gate-copy">Sales uses this pad when a customer comes to buy compost. The customer and the other signing parties all sign on this same sheet.</p>
       <form id="setupForm" class="stack-form">
-        <label>Operator name<input id="setupName" name="operatorName" required autocomplete="name" /></label>
-        <label>Role
+        <label>Your name<input id="setupName" name="operatorName" required autocomplete="name" /></label>
+        <label>You are
           <select id="setupRole" name="role">
-            <option value="driver">Driver</option>
-            <option value="sales">Sales</option>
+            <option value="sales" selected>Sales</option>
             <option value="supervisor">Supervisor</option>
+            <option value="dispatch">Dispatch</option>
           </select>
         </label>
-        <label>Usual vehicle<input id="setupVehicle" name="vehicleNumber" autocapitalize="characters" placeholder="e.g. GT 100-26" /></label>
+        <label>Usual vehicle (optional)<input id="setupVehicle" name="vehicleNumber" autocapitalize="characters" placeholder="e.g. GT 100-26" /></label>
         <label>4-digit PIN (optional)<input id="setupPin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" /></label>
         <button class="primary" type="submit">Continue</button>
       </form>
@@ -47,7 +47,7 @@
       <header class="topbar">
         <div class="brand-block">
           <img src="./assets/safiroute-logo.png" alt="SafiRoute" class="brand" />
-          <p class="brand-kicker">Field pad</p>
+          <p class="brand-kicker">Sales waybill</p>
         </div>
         <div class="topbar-meta">
           <p id="headerOperator" class="operator-name"></p>
@@ -64,6 +64,8 @@
           </div>
           <button id="newWaybillButton" class="primary">+ New waybill</button>
         </section>
+
+        <p class="howto">When a customer buys compost, Sales fills this pad. Then Sales, Dispatch, and the customer each sign their line — the same parties as the paper book.</p>
 
         <section class="summary" aria-label="Waybill summary">
           <article><strong id="totalCount">0</strong><span>Total</span></article>
@@ -87,7 +89,7 @@
           <div id="emptyState" class="empty">
             <div class="empty-icon">✓</div>
             <h3>No waybills yet</h3>
-            <p>Create a pad from the gold button. Drafts stay on this phone.</p>
+            <p>Open a pad when a customer comes to buy compost. Sales, Dispatch, and the customer sign on this sheet.</p>
           </div>
           <div id="waybillList" class="waybill-list"></div>
         </section>
@@ -96,16 +98,16 @@
       <main id="settingsView" class="shell settings" hidden>
         <p class="eyebrow">THIS PHONE</p>
         <h1>Settings</h1>
-        <p class="lede">Operator details fill the pad. Log out only locks this session — waybills are not deleted.</p>
+        <p class="lede">Your name fills the pad. Log out only locks this phone — compost waybills are not deleted.</p>
 
         <form id="settingsForm" class="stack-form panel settings-panel">
           <h2>Operator</h2>
           <label>Name<input id="settingsName" name="operatorName" required autocomplete="name" /></label>
-          <label>Role
+          <label>You are
             <select id="settingsRole" name="role">
-              <option value="driver">Driver</option>
               <option value="sales">Sales</option>
               <option value="supervisor">Supervisor</option>
+              <option value="dispatch">Dispatch</option>
             </select>
           </label>
           <label>Usual vehicle<input id="settingsVehicle" name="vehicleNumber" autocapitalize="characters" /></label>
@@ -126,7 +128,7 @@
         <section class="panel settings-panel about">
           <h2>About</h2>
           <p><b>SafiRoute</b> · Every delivery. Verified.</p>
-          <p>Safisana Ghana Limited · Field pad v0.1</p>
+          <p>Safisana Ghana Limited · Compost sales waybill v0.1</p>
           <p class="muted">Install from the browser menu (Add to Home Screen) for a full-screen phone app.</p>
         </section>
       </main>
@@ -191,7 +193,7 @@
 
           <div class="pad-footer">
             <div class="pad-col">
-              <label><span>Authorised by:</span><input name="authorisedBy" class="waybill-line" /></label>
+              <label><span>Authorised by:<em class="party">Sales</em></span><input name="authorisedBy" class="waybill-line" /></label>
               <div class="sign-line" data-sign="authorised">
                 <div class="sign-line-head">
                   <span>Signature:</span>
@@ -206,7 +208,7 @@
               <label><span>Remarks:</span><input name="authorisedRemarks" class="waybill-line" /></label>
             </div>
             <div class="pad-col">
-              <label><span>Dispatched by:</span><input name="driverName" class="waybill-line" autocomplete="name" /></label>
+              <label><span>Dispatched by:<em class="party">Dispatch</em></span><input name="driverName" class="waybill-line" autocomplete="name" /></label>
               <label><span>Vehicle:</span><input name="vehicleNumber" class="waybill-line" autocapitalize="characters" /></label>
               <div class="sign-line" data-sign="dispatched">
                 <div class="sign-line-head">
@@ -220,7 +222,7 @@
               </div>
               <p>Date: <span class="dots short"></span></p>
               <p class="certify">I certify that I have received the above items.</p>
-              <label><span>Received by:</span><input name="receivedBy" class="waybill-line" /></label>
+              <label><span>Received by:<em class="party">Customer</em></span><input name="receivedBy" class="waybill-line" /></label>
               <div class="sign-line" data-sign="received">
                 <div class="sign-line-head">
                   <span>Signature:</span>
@@ -250,7 +252,7 @@
           <button type="button" id="deleteButton" class="danger" hidden>Delete</button>
           <span class="spacer"></span>
           <button type="button" id="saveDraftButton" class="secondary">Save draft</button>
-          <button type="button" id="completeButton" class="primary">Complete delivery</button>
+          <button type="button" id="completeButton" class="primary">Complete waybill</button>
         </div>
       </form>
     </dialog>
