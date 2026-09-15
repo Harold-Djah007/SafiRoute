@@ -223,16 +223,15 @@ button { cursor: pointer; }
 .topbar {
   position: sticky;
   top: 0;
-  z-index: 5;
+  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: space-between;
   min-height: 72px;
   padding: 10px max(20px, calc((100vw - 1120px) / 2));
-  background: rgba(4, 21, 12, .78);
+  background: #07180f;
   color: #f4efe2;
   border-bottom: 1px solid rgba(255, 195, 24, .28);
-  backdrop-filter: blur(18px) saturate(1.25);
 }
 
 .topbar::after {
@@ -270,9 +269,9 @@ button { cursor: pointer; }
   width: min(1120px, calc(100% - 28px));
   margin: 0 auto;
   padding: 26px 0 130px;
+  position: relative;
+  z-index: 1;
 }
-
-.shell:not([hidden]) { view-transition-name: page; }
 
 .dash { display: flex; align-items: end; justify-content: space-between; gap: 24px; }
 .dash h1,
@@ -732,6 +731,7 @@ input:focus, textarea:focus, select:focus {
 .settings h1 { margin: 4px 0 0; }
 .settings-panel { margin-top: 16px; }
 .settings-panel h2 { margin: 0 0 10px; font-size: 1.05rem; }
+.settings-panel .primary { width: fit-content; min-width: 180px; }
 .settings-notice { margin: 0; }
 .settings-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; padding-bottom: 12px; }
 .muted { color: var(--muted); margin: 0 0 8px; }

@@ -1,4 +1,4 @@
-const CACHE_NAME = "safiroute-shell-v12";
+const CACHE_NAME = "safiroute-shell-v13";
 const APP_SHELL = [
   "./",
   "./index.html",

@@ -107,7 +107,17 @@ function setView(name, { instant = false } = {}) {
     return;
   }
   if (typeof document.startViewTransition === "function") {
-    document.startViewTransition(() => applyView(name));
+    const outgoing = from === "settings" ? $("#settingsView") : $("#waybillsView");
+    const incoming = name === "settings" ? $("#settingsView") : $("#waybillsView");
+    outgoing.style.viewTransitionName = "page";
+    const transition = document.startViewTransition(() => {
+      outgoing.style.viewTransitionName = "";
+      incoming.style.viewTransitionName = "page";
+      applyView(name);
+    });
+    transition.finished.finally(() => {
+      incoming.style.viewTransitionName = "";
+    });
     return;
   }
   const outgoing = from === "settings" ? $("#settingsView") : $("#waybillsView");
