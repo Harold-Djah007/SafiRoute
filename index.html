@@ -98,10 +98,15 @@
               <p class="eyebrow">ON THIS DEVICE</p>
               <h2>Saved waybills</h2>
             </div>
-            <div class="filters" role="tablist" aria-label="Filter waybills">
-              <button type="button" class="chip active" data-filter="all">All</button>
-              <button type="button" class="chip" data-filter="draft">Drafts</button>
-              <button type="button" class="chip" data-filter="completed">Completed</button>
+            <div class="list-tools">
+              <label class="search-label">Search
+                <input id="waybillSearch" type="search" placeholder="Customer, vehicle, or number" autocomplete="off" />
+              </label>
+              <div class="filters" role="tablist" aria-label="Filter waybills">
+                <button type="button" class="chip active" data-filter="all">All</button>
+                <button type="button" class="chip" data-filter="draft">Drafts</button>
+                <button type="button" class="chip" data-filter="completed">Completed</button>
+              </div>
             </div>
           </div>
           <div id="emptyState" class="empty">
@@ -123,30 +128,79 @@
       <main id="settingsView" class="shell settings" hidden>
         <p class="eyebrow">THIS PHONE</p>
         <h1>Settings</h1>
-        <p class="lede">Change the sales name used on Authorised by. There is no company login on this pad yet.</p>
+        <p class="lede">Everything the sales pad needs on this device. There is still no Safisana company login.</p>
+
+        <section class="settings-hero panel">
+          <div id="settingsAvatar" class="settings-avatar" aria-hidden="true">S</div>
+          <div>
+            <p id="settingsHeroName" class="settings-hero-name">Sales person</p>
+            <p id="settingsHeroMeta" class="muted">Name used on Authorised by</p>
+          </div>
+          <p id="deviceStats" class="settings-stat">0 waybills on this phone</p>
+        </section>
 
         <form id="settingsForm" class="stack-form panel settings-panel">
-          <h2>Sales person</h2>
+          <p class="eyebrow">SALES PERSON</p>
+          <h2>Name on the pad</h2>
+          <p class="muted">Filled automatically on Authorised by when a customer buys compost.</p>
           <label>Name<input id="settingsName" name="operatorName" required autocomplete="name" /></label>
-          <label>Optional phone lock PIN<input id="settingsPin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="Leave blank — no password needed" /></label>
-          <button class="primary" type="submit">Save name</button>
+          <label>Phone<input id="settingsPhone" name="phone" inputmode="tel" autocomplete="tel" placeholder="Optional — for this phone only" /></label>
+          <label>Usual vehicle<input id="settingsVehicle" name="vehicleNumber" autocapitalize="characters" placeholder="Optional — pre-fills Vehicle on new pads" /></label>
+          <div class="sign-line settings-sign" data-sign="sales">
+            <div class="sign-line-head">
+              <span>Your Authorised-by signature</span>
+              <button type="button" data-clear-sign class="text-button">Clear</button>
+            </div>
+            <p class="muted">Sign once. New waybills start with this mark; you can still change it on a sheet.</p>
+            <div class="sign-line-surface">
+              <span class="sign-hint">Sign here</span>
+              <canvas id="salesSignature" width="720" height="140" aria-label="Saved sales signature"></canvas>
+            </div>
+          </div>
+          <button class="primary" type="submit">Save sales details</button>
           <p id="settingsNotice" class="notice settings-notice" hidden></p>
         </form>
 
+        <form id="pinForm" class="stack-form panel settings-panel">
+          <p class="eyebrow">PHONE LOCK</p>
+          <h2>Optional PIN</h2>
+          <p id="pinStatus" class="muted">No PIN. Anyone with this phone can open the pad.</p>
+          <label>New 4-digit PIN<input id="settingsPin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="1234" /></label>
+          <label>Confirm PIN<input id="settingsPinConfirm" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" /></label>
+          <div class="settings-actions">
+            <button class="primary" type="submit">Save PIN</button>
+            <button id="removePinButton" type="button" class="secondary" hidden>Remove PIN</button>
+            <button id="logoutButton" type="button" class="danger" hidden>Lock pad now</button>
+          </div>
+          <p id="pinNotice" class="notice settings-notice" hidden></p>
+        </form>
+
         <section class="panel settings-panel">
-          <h2>Device</h2>
-          <p class="muted">Waybills stay on this phone. You do not need Safisana login details here.</p>
+          <p class="eyebrow">BACKUP</p>
+          <h2>Keep copies off this phone</h2>
+          <p id="backupMeta" class="muted">Waybills live only in this browser until you export a file.</p>
           <div class="settings-actions">
             <button id="exportButton" type="button" class="secondary">Export backup</button>
-            <button id="logoutButton" type="button" class="danger">Log out</button>
+            <button id="importButton" type="button" class="secondary">Restore backup</button>
+            <input id="importBackup" type="file" accept="application/json,.json" hidden />
+          </div>
+        </section>
+
+        <section class="panel settings-panel">
+          <p class="eyebrow">APP</p>
+          <h2>Install on the home screen</h2>
+          <p class="muted">Full-screen, works offline after the first open. On iPhone use Share → Add to Home Screen. On Android, Chrome can install it.</p>
+          <div class="settings-actions">
+            <button id="installButton" type="button" class="primary" hidden>Install SafiRoute</button>
           </div>
         </section>
 
         <section class="panel settings-panel about">
-          <h2>About</h2>
-          <p><b>SafiRoute</b> · Every delivery. Verified.</p>
+          <p class="eyebrow">ABOUT</p>
+          <h2>SafiRoute</h2>
+          <p><b>Every delivery. Verified.</b></p>
           <p>Safisana Ghana Limited · Compost sales waybill v0.1</p>
-          <p class="muted">Install from the browser menu (Add to Home Screen) for a full-screen phone app.</p>
+          <p class="muted">Offline pad for Sales. Server accounts and sync are not on this phone yet — export a backup before clearing browser data.</p>
         </section>
       </main>
 
@@ -279,6 +333,8 @@
 
         <div class="form-actions">
           <button type="button" id="deleteButton" class="danger" hidden>Delete</button>
+          <button type="button" id="copyWaybillButton" class="secondary">Copy as new</button>
+          <button type="button" id="printButton" class="secondary">Print</button>
           <span class="spacer"></span>
           <button type="button" id="saveDraftButton" class="secondary">Save draft</button>
           <button type="button" id="completeButton" class="primary">Complete waybill</button>
@@ -306,7 +362,10 @@
           <div><dt>Updated</dt><dd data-field="updated"></dd></div>
           <div><dt>Sync</dt><dd data-field="sync"></dd></div>
         </dl>
-        <button class="card-action">Open</button>
+        <div class="card-actions">
+          <button class="card-action" data-open>Open</button>
+          <button class="card-copy" type="button" data-copy>Copy</button>
+        </div>
       </article>
     </template>
 

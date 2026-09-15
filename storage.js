@@ -52,6 +52,23 @@ export function deleteWaybill(id) {
   return useStore(STORE, "readwrite", (store) => store.delete(id));
 }
 
+export async function saveWaybills(items) {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE, "readwrite");
+    const store = transaction.objectStore(STORE);
+    for (const item of items) store.put(item);
+    transaction.oncomplete = () => {
+      db.close();
+      resolve(items.length);
+    };
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error);
+    };
+  });
+}
+
 export function getProfile() {
   return useStore(SETTINGS, "readonly", (store) => store.get("profile"));
 }

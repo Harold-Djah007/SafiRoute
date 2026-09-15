@@ -69,6 +69,32 @@ export function createEmptyWaybill(now = new Date(), random = Math.random) {
   };
 }
 
+export function isMeaningfulDraft(waybill, profile = {}) {
+  const name = (profile.operatorName || "").trim();
+  const vehicle = (profile.vehicleNumber || "").trim().toUpperCase();
+  const savedSign = profile.authorisedSignature || null;
+  const authorisedBy = (waybill.authorisedBy || "").trim();
+  const vehicleNumber = (waybill.vehicleNumber || "").trim().toUpperCase();
+  const lineFilled = (waybill.items || []).some((item) => item.description?.trim() || item.qty || item.remarks?.trim());
+  const ownAuthorisedSign = Boolean(waybill.authorisedSignature && waybill.authorisedSignature !== savedSign);
+  const extras = [
+    waybill.customerName,
+    waybill.contactName,
+    waybill.customerPhone,
+    waybill.deliveryAddress,
+    authorisedBy && authorisedBy !== name ? authorisedBy : "",
+    waybill.authorisedRemarks,
+    waybill.driverName,
+    vehicleNumber && vehicleNumber !== vehicle ? waybill.vehicleNumber : "",
+    waybill.receivedBy,
+    waybill.dispatchedSignature,
+    waybill.customerSignature,
+    waybill.photo,
+    waybill.latitude
+  ];
+  return extras.some((value) => value !== null && String(value).trim() !== "") || lineFilled || ownAuthorisedSign;
+}
+
 export function validateWaybill(waybill) {
   const errors = {};
   const line = firstFilledItem(waybill);
@@ -80,10 +106,68 @@ export function validateWaybill(waybill) {
   if (!productName) errors.productName = "Add at least one description line.";
   const qty = Number(quantity);
   if (!Number.isFinite(qty) || qty <= 0) errors.quantity = "Enter a quantity greater than zero.";
+  if (!waybill.authorisedBy?.trim()) errors.authorisedBy = "Authorised by is required.";
   if (!driverName) errors.driverName = "Dispatched by is required.";
   if (!waybill.vehicleNumber?.trim()) errors.vehicleNumber = "Vehicle number is required.";
-  if (!waybill.customerSignature) errors.customerSignature = "Received-by signature is required to complete delivery.";
+  if (!waybill.receivedBy?.trim()) errors.receivedBy = "Received by is required.";
+  if (!waybill.authorisedSignature) errors.authorisedSignature = "Sales must sign Authorised by.";
+  if (!waybill.dispatchedSignature) errors.dispatchedSignature = "Dispatch must sign.";
+  if (!waybill.customerSignature) errors.customerSignature = "The customer must sign Received by.";
   return errors;
+}
+
+export function parseBackup(raw) {
+  const data = typeof raw === "string" ? JSON.parse(raw) : raw;
+  const waybills = Array.isArray(data) ? data : data?.waybills;
+  if (!Array.isArray(waybills)) throw new Error("Not a SafiRoute backup file.");
+  return {
+    exportedAt: data?.exportedAt || null,
+    profile: data?.profile && typeof data.profile === "object" ? data.profile : null,
+    waybills
+  };
+}
+
+export function buildBackup({ profile, waybills, exportedAt = new Date().toISOString() }) {
+  return {
+    app: "safiroute",
+    version: 1,
+    exportedAt,
+    profile: profile
+      ? {
+          operatorName: profile.operatorName || "",
+          phone: profile.phone || "",
+          vehicleNumber: profile.vehicleNumber || "",
+          authorisedSignature: profile.authorisedSignature || null,
+          pinHash: profile.pinHash || null,
+          role: "sales"
+        }
+      : null,
+    waybills
+  };
+}
+
+export function mergeWaybills(existing, incoming) {
+  const map = new Map(existing.map((item) => [item.id, item]));
+  let added = 0;
+  let updated = 0;
+  let skipped = 0;
+  for (const item of incoming) {
+    if (!item?.id) {
+      skipped += 1;
+      continue;
+    }
+    const previous = map.get(item.id);
+    if (!previous) {
+      map.set(item.id, item);
+      added += 1;
+    } else if ((item.updatedAt || "") > (previous.updatedAt || "")) {
+      map.set(item.id, item);
+      updated += 1;
+    } else {
+      skipped += 1;
+    }
+  }
+  return { waybills: [...map.values()], added, updated, skipped };
 }
 
 export function summarizeWaybills(waybills) {

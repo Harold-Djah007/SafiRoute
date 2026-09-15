@@ -24,7 +24,7 @@ test("manifest is valid and provides a maskable app icon", () => {
 
 test("main document exposes the offline form controls", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-  for (const id of ["waybillForm", "signatureCanvas", "authorisedSignature", "dispatchedSignature", "photoInput", "gpsButton", "connectionBadge", "settingsView", "lockScreen", "logoutButton"]) {
+  for (const id of ["waybillForm", "signatureCanvas", "authorisedSignature", "dispatchedSignature", "photoInput", "gpsButton", "connectionBadge", "settingsView", "lockScreen", "logoutButton", "importBackup", "settingsPhone", "pinForm", "waybillSearch"]) {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
 });

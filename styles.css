@@ -721,6 +721,7 @@ input:focus, textarea:focus, select:focus {
 
 .sign-line.is-signed .sign-hint,
 .sign-line.is-signing .sign-hint { opacity: 0; }
+.sign-line.invalid { outline: 2px solid var(--danger); outline-offset: 3px; border-radius: 6px; }
 .certify { margin: 10px 0 2px !important; font-style: italic; }
 .pad-evidence { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--pad-rule); }
 .pad-evidence-label { margin: 0 0 10px; font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: var(--pad-muted); font-weight: 800; }
@@ -730,17 +731,92 @@ input:focus, textarea:focus, select:focus {
 .stack-form label { display: grid; gap: 6px; }
 .settings h1 { margin: 4px 0 0; }
 .settings-panel { margin-top: 16px; }
-.settings-panel h2 { margin: 0 0 10px; font-size: 1.05rem; }
+.settings-panel h2 { margin: 4px 0 8px; font-size: 1.2rem; font-family: var(--display); letter-spacing: -.02em; }
 .settings-panel .primary { width: fit-content; min-width: 180px; }
 .settings-notice { margin: 0; }
-.settings-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; padding-bottom: 12px; }
+.settings-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; padding-bottom: 4px; }
 .muted { color: var(--muted); margin: 0 0 8px; }
+
+.settings-hero {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 16px;
+  align-items: center;
+  margin-top: 18px;
+}
+.settings-avatar {
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(180deg, #16563a, #0b3a26);
+  color: var(--gold);
+  font-family: var(--display);
+  font-size: 1.4rem;
+  font-weight: 800;
+}
+.settings-hero-name {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 1.35rem;
+  letter-spacing: -.02em;
+  color: var(--ink);
+}
+.settings-stat {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: #eaf7e5;
+  color: var(--green-800);
+  font-size: .78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.settings-sign {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--pad-paper);
+  border: 1px solid #e4dcc8;
+}
+.settings-sign .sign-line-surface canvas { height: 64px; }
+
+.list-tools { display: grid; gap: 10px; justify-items: end; }
+.search-label {
+  display: grid;
+  gap: 4px;
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.search-label input {
+  min-height: 40px;
+  min-width: min(280px, 100%);
+  border-radius: 999px;
+  padding: 8px 14px;
+}
+
+.card-actions { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.card-copy {
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid #d7e2d8;
+  border-radius: 12px;
+  background: white;
+  color: var(--green-800);
+  font-weight: 800;
+}
 
 #appShell[hidden],
 #waybillsView[hidden],
 #settingsView[hidden],
 #pinUnlockLabel[hidden],
-#emptyState[hidden] {
+#emptyState[hidden],
+#installButton[hidden],
+#removePinButton[hidden],
+#logoutButton[hidden] {
   display: none !important;
 }
 
@@ -839,6 +915,10 @@ html[data-dir="back"]::view-transition-new(page) {
   .summary { grid-template-columns: 1fr 1fr; gap: 9px; }
   .panel { padding: 16px; }
   .panel-heading { align-items: stretch; flex-direction: column; }
+  .list-tools { justify-items: stretch; }
+  .search-label input { min-width: 0; width: 100%; }
+  .settings-hero { grid-template-columns: auto 1fr; }
+  .settings-stat { grid-column: 1 / -1; justify-self: start; }
   .waybill-list { grid-template-columns: 1fr; }
   dialog { width: calc(100% - 8px); max-height: calc(100dvh - 8px); border-radius: 16px; }
   .pad-header, .pad-fields, .pad-footer { grid-template-columns: 1fr; }
@@ -853,9 +933,13 @@ html[data-dir="back"]::view-transition-new(page) {
 }
 
 @media print {
-  .atmosphere, .topbar, .app-nav, .filters, .card-action { display: none !important; }
-  body, .shell, .panel { background: white; margin: 0; padding: 0; border: 0; }
+  .atmosphere, .topbar, .app-nav, .filters, .card-action, .card-copy, .pad-toolbar, .form-actions, .pad-evidence, .howto, .summary, .dash, .list-tools {
+    display: none !important;
+  }
+  body, .shell, .panel { background: white; margin: 0; padding: 0; border: 0; box-shadow: none; }
   .dash h1, .settings h1, .lede, .howto { color: var(--ink); text-shadow: none; }
+  dialog { position: static; width: 100%; max-height: none; box-shadow: none; border-radius: 0; }
+  .waybill-pad { margin: 0; box-shadow: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

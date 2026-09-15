@@ -1,5 +1,5 @@
-import { createEmptyWaybill, firstFilledItem, normalizeItems, summarizeWaybills, validateWaybill } from "./model.js";
-import { deleteWaybill, getProfile, getWaybill, hashPin, listWaybills, saveProfile, saveWaybill } from "./storage.js";
+import { buildBackup, createEmptyWaybill, firstFilledItem, isMeaningfulDraft, mergeWaybills, normalizeItems, parseBackup, summarizeWaybills, validateWaybill } from "./model.js";
+import { deleteWaybill, getProfile, getWaybill, hashPin, listWaybills, saveProfile, saveWaybill, saveWaybills } from "./storage.js";
 
 const state = { active: null, persisted: false };
 const SESSION = "safiroute.session";
@@ -9,6 +9,8 @@ const photoPreview = document.querySelector("#photoPreview");
 let autosaveTimer = null;
 let profile = null;
 let listFilter = "all";
+let listQuery = "";
+let installPrompt = null;
 const pads = {};
 
 function $(selector) { return document.querySelector(selector); }
@@ -37,7 +39,20 @@ function greeting() {
 function applyProfileDefaults(waybill) {
   if (!profile?.operatorName) return waybill;
   waybill.authorisedBy = profile.operatorName;
+  if (!waybill.vehicleNumber && profile.vehicleNumber) waybill.vehicleNumber = profile.vehicleNumber;
+  if (!waybill.authorisedSignature && profile.authorisedSignature) waybill.authorisedSignature = profile.authorisedSignature;
   return waybill;
+}
+
+function initials(name) {
+  return (name || "S").split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+}
+
+function showSettingsNotice(id, message) {
+  const notice = $(id);
+  if (!notice) return;
+  notice.textContent = message;
+  notice.hidden = false;
 }
 
 function renderChrome() {
@@ -52,7 +67,22 @@ function renderChrome() {
   $("#pinUnlockLabel").hidden = !needsPin;
   $("#unlockPin").required = needsPin;
   $("#logoutButton").hidden = !needsPin;
+  $("#removePinButton").hidden = !needsPin;
+  $("#pinStatus").textContent = needsPin
+    ? "PIN is on. Lock the pad when you step away from this phone."
+    : "No PIN. Anyone with this phone can open the pad.";
   $("#settingsName").value = profile.operatorName;
+  $("#settingsPhone").value = profile.phone || "";
+  $("#settingsVehicle").value = profile.vehicleNumber || "";
+  $("#settingsHeroName").textContent = profile.operatorName;
+  $("#settingsHeroMeta").textContent = profile.phone
+    ? `${profile.phone} · Sales on this phone`
+    : "Name used on Authorised by";
+  $("#settingsAvatar").textContent = initials(profile.operatorName);
+  if (pads.sales) pads.sales.load(profile.authorisedSignature);
+  $("#backupMeta").textContent = profile.lastBackupAt
+    ? `Last backup exported ${formatDate(profile.lastBackupAt)}.`
+    : "Waybills live only in this browser until you export a file.";
 }
 
 function prefersReducedMotion() {
@@ -290,6 +320,9 @@ function clearErrors() {
 function errorTarget(name) {
   if (name === "productName") return document.querySelector('[data-item="description"]');
   if (name === "quantity") return document.querySelector('[data-item="qty"]');
+  if (name === "authorisedSignature") return document.querySelector('[data-sign="authorised"]');
+  if (name === "dispatchedSignature") return document.querySelector('[data-sign="dispatched"]');
+  if (name === "customerSignature") return document.querySelector('[data-sign="received"]');
   return field(name);
 }
 
@@ -306,9 +339,17 @@ function showErrors(errors) {
 async function persist(status) {
   clearTimeout(autosaveTimer);
   const waybill = readForm();
+  if (status === "draft" && !isMeaningfulDraft(waybill, profile || {})) {
+    return showNotice("Nothing to save yet. Fill the customer or a product line first.");
+  }
   if (status === "completed") {
     const errors = validateWaybill(waybill);
     if (Object.keys(errors).length) return showErrors(errors);
+    const missingProof = waybill.latitude == null && !waybill.photo;
+    const ok = confirm(missingProof
+      ? `Complete ${waybill.number} without GPS or a photo?`
+      : `Complete ${waybill.number} for ${waybill.customerName}?`);
+    if (!ok) return;
   }
   waybill.status = status;
   waybill.syncStatus = status === "completed" ? "pending" : "local_only";
@@ -318,30 +359,32 @@ async function persist(status) {
   await refreshList();
 }
 
-function hasDraftContent(waybill) {
-  const lineFilled = (waybill.items || []).some((item) => item.description?.trim() || item.qty || item.remarks?.trim());
-  return [
-    waybill.customerName,
-    waybill.contactName,
-    waybill.customerPhone,
-    waybill.deliveryAddress,
-    waybill.authorisedBy,
-    waybill.authorisedRemarks,
-    waybill.driverName,
-    waybill.vehicleNumber,
-    waybill.receivedBy,
-    waybill.authorisedSignature,
-    waybill.dispatchedSignature,
-    waybill.customerSignature,
-    waybill.photo,
-    waybill.latitude
-  ].some((value) => value !== null && String(value).trim() !== "") || lineFilled;
+function copyAsNew(source) {
+  const waybill = applyProfileDefaults(createEmptyWaybill());
+  waybill.customerName = source.customerName || "";
+  waybill.contactName = source.contactName || "";
+  waybill.customerPhone = source.customerPhone || "";
+  waybill.deliveryAddress = source.deliveryAddress || "";
+  waybill.items = normalizeItems({
+    items: (source.items || []).map((item) => ({
+      description: item.description || "",
+      qty: item.qty || "",
+      remarks: item.remarks || ""
+    })),
+    productName: source.productName,
+    quantity: source.quantity
+  });
+  waybill.productName = source.productName || "";
+  waybill.quantity = source.quantity || "";
+  waybill.driverName = source.driverName || "";
+  if (source.vehicleNumber) waybill.vehicleNumber = source.vehicleNumber;
+  return waybill;
 }
 
 async function autosaveDraft() {
   if (!dialog.open || state.active?.status === "completed") return;
   const waybill = readForm();
-  if (!hasDraftContent(waybill)) return;
+  if (!isMeaningfulDraft(waybill, profile || {})) return;
   waybill.status = "draft";
   waybill.syncStatus = "local_only";
   await saveWaybill(waybill);
@@ -456,7 +499,8 @@ function attachPad(canvas, { lineWidth = 3 } = {}) {
 Object.assign(pads, {
   authorised: attachPad($("#authorisedSignature"), { lineWidth: 2.6 }),
   dispatched: attachPad($("#dispatchedSignature"), { lineWidth: 2.6 }),
-  customer: attachPad($("#signatureCanvas"), { lineWidth: 2.6 })
+  customer: attachPad($("#signatureCanvas"), { lineWidth: 2.6 }),
+  sales: attachPad($("#salesSignature"), { lineWidth: 2.6 })
 });
 
 function productSummary(item) {
@@ -474,10 +518,18 @@ async function refreshList() {
   $("#draftCount").textContent = summary.drafts;
   $("#completedCount").textContent = summary.completed;
   $("#pendingCount").textContent = summary.pending;
-  const visible = listFilter === "all" ? items : items.filter((item) => item.status === listFilter);
+  const visible = items.filter((item) => {
+    if (listFilter !== "all" && item.status !== listFilter) return false;
+    if (!listQuery) return true;
+    const haystack = [item.number, item.customerName, item.contactName, item.vehicleNumber, productSummary(item)].join(" ").toLowerCase();
+    return haystack.includes(listQuery);
+  });
   $("#emptyState").hidden = visible.length > 0;
   $("#emptyState h3").textContent = items.length ? "Nothing in this filter" : "No waybills yet";
-  $("#emptyState p").textContent = items.length ? "Try All to see every pad on this phone." : "Open a pad when a customer comes to buy compost. Sales, Dispatch, and the customer sign on this sheet.";
+  $("#emptyState p").textContent = items.length
+    ? (listQuery ? "No waybill matches that search." : "Try All to see every pad on this phone.")
+    : "Open a pad when a customer comes to buy compost. Sales, Dispatch, and the customer sign on this sheet.";
+  $("#deviceStats").textContent = `${summary.total} waybill${summary.total === 1 ? "" : "s"} on this phone`;
   const list = $("#waybillList");
   list.replaceChildren();
   visible.forEach((item, index) => {
@@ -492,8 +544,12 @@ async function refreshList() {
     card.querySelector('[data-field="vehicle"]').textContent = item.vehicleNumber || "Not assigned";
     card.querySelector('[data-field="updated"]').textContent = formatDate(item.updatedAt);
     card.querySelector('[data-field="sync"]').textContent = item.syncStatus === "pending" ? "Pending server" : "Device only";
-    card.querySelector(".card-action").addEventListener("click", async () => {
+    card.querySelector("[data-open]").addEventListener("click", async () => {
       populateForm(await getWaybill(item.id), true);
+      dialog.showModal();
+    });
+    card.querySelector("[data-copy]").addEventListener("click", async () => {
+      populateForm(copyAsNew(await getWaybill(item.id)));
       dialog.showModal();
     });
     list.append(card);
@@ -511,6 +567,11 @@ $("#closeDialogButton").addEventListener("click", async () => {
 $("#addLineButton").addEventListener("click", addItemRow);
 $("#saveDraftButton").addEventListener("click", () => persist("draft"));
 $("#completeButton").addEventListener("click", () => persist("completed"));
+$("#printButton").addEventListener("click", () => window.print());
+$("#copyWaybillButton").addEventListener("click", () => {
+  if (!state.active) return;
+  populateForm(copyAsNew(readForm()));
+});
 $("#deleteButton").addEventListener("click", async () => {
   if (!confirm(`Delete ${state.active.number} from this device?`)) return;
   await deleteWaybill(state.active.id);
@@ -553,13 +614,48 @@ $("#photoInput").addEventListener("change", (event) => {
 });
 
 $("#exportButton").addEventListener("click", async () => {
-  const data = JSON.stringify({ exportedAt: new Date().toISOString(), waybills: await listWaybills() }, null, 2);
-  const url = URL.createObjectURL(new Blob([data], { type: "application/json" }));
+  const exportedAt = new Date().toISOString();
+  const payload = buildBackup({ profile, waybills: await listWaybills(), exportedAt });
+  const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }));
   const link = document.createElement("a");
   link.href = url;
-  link.download = `safiroute-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  link.download = `safiroute-backup-${exportedAt.slice(0, 10)}.json`;
   link.click();
   URL.revokeObjectURL(url);
+  profile = { ...profile, lastBackupAt: exportedAt, updatedAt: exportedAt };
+  await saveProfile(profile);
+  renderChrome();
+  showSettingsNotice("#settingsNotice", "Backup file saved. Keep it off this phone.");
+});
+
+$("#importButton").addEventListener("click", () => $("#importBackup").click());
+$("#importBackup").addEventListener("change", async (event) => {
+  const [file] = event.target.files;
+  event.target.value = "";
+  if (!file) return;
+  try {
+    const backup = parseBackup(await file.text());
+    const merged = mergeWaybills(await listWaybills(), backup.waybills);
+    await saveWaybills(merged.waybills);
+    if (backup.profile && confirm("This file has a sales profile. Restore name, phone, vehicle, and signature on this phone?")) {
+      profile = {
+        ...profile,
+        operatorName: backup.profile.operatorName || profile.operatorName,
+        phone: backup.profile.phone || profile.phone || "",
+        vehicleNumber: backup.profile.vehicleNumber || profile.vehicleNumber || "",
+        authorisedSignature: backup.profile.authorisedSignature || profile.authorisedSignature || null,
+        pinHash: backup.profile.pinHash || profile.pinHash || null,
+        role: "sales",
+        updatedAt: new Date().toISOString()
+      };
+      await saveProfile(profile);
+    }
+    renderChrome();
+    await refreshList();
+    showSettingsNotice("#settingsNotice", `Restored ${merged.added} new, ${merged.updated} updated, ${merged.skipped} unchanged.`);
+  } catch (error) {
+    showSettingsNotice("#settingsNotice", error.message);
+  }
 });
 
 form.addEventListener("submit", (event) => event.preventDefault());
@@ -577,6 +673,10 @@ document.querySelectorAll("[data-filter]").forEach((button) => {
     await refreshList();
   });
 });
+$("#waybillSearch").addEventListener("input", async (event) => {
+  listQuery = event.target.value.trim().toLowerCase();
+  await refreshList();
+});
 
 $("#setupForm").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -584,8 +684,11 @@ $("#setupForm").addEventListener("submit", async (event) => {
     id: "profile",
     operatorName: $("#setupName").value.trim(),
     role: "sales",
+    phone: "",
     vehicleNumber: "",
+    authorisedSignature: null,
     pinHash: null,
+    lastBackupAt: null,
     updatedAt: new Date().toISOString()
   };
   await saveProfile(profile);
@@ -594,20 +697,45 @@ $("#setupForm").addEventListener("submit", async (event) => {
 
 $("#settingsForm").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const pin = $("#settingsPin").value.trim();
   profile = {
     ...profile,
     operatorName: $("#settingsName").value.trim(),
+    phone: $("#settingsPhone").value.trim(),
+    vehicleNumber: $("#settingsVehicle").value.trim().toUpperCase(),
+    authorisedSignature: pads.sales.read(),
     role: "sales",
-    pinHash: pin ? await hashPin(pin) : profile.pinHash,
     updatedAt: new Date().toISOString()
   };
   await saveProfile(profile);
-  $("#settingsPin").value = "";
   renderChrome();
-  const notice = $("#settingsNotice");
-  notice.textContent = "Saved on this phone.";
-  notice.hidden = false;
+  showSettingsNotice("#settingsNotice", "Sales details saved on this phone.");
+});
+
+$("#pinForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const pin = $("#settingsPin").value.trim();
+  const confirmPin = $("#settingsPinConfirm").value.trim();
+  if (!/^\d{4}$/.test(pin)) {
+    return showSettingsNotice("#pinNotice", "Use a 4-digit PIN.");
+  }
+  if (pin !== confirmPin) {
+    return showSettingsNotice("#pinNotice", "Those PINs do not match.");
+  }
+  profile = { ...profile, pinHash: await hashPin(pin), updatedAt: new Date().toISOString() };
+  await saveProfile(profile);
+  $("#settingsPin").value = "";
+  $("#settingsPinConfirm").value = "";
+  renderChrome();
+  showSettingsNotice("#pinNotice", "PIN saved. Use Lock pad now when you step away.");
+});
+
+$("#removePinButton").addEventListener("click", async () => {
+  if (!confirm("Remove the PIN from this phone?")) return;
+  profile = { ...profile, pinHash: null, updatedAt: new Date().toISOString() };
+  await saveProfile(profile);
+  unlockSession();
+  renderChrome();
+  showSettingsNotice("#pinNotice", "PIN removed. The pad stays open on this phone.");
 });
 
 $("#logoutButton").addEventListener("click", () => {
@@ -633,6 +761,19 @@ $("#unlockForm").addEventListener("submit", async (event) => {
   }
   $("#unlockPin").value = "";
   await enterApp();
+});
+
+window.addEventListener("beforeinstallprompt", (event) => {
+  event.preventDefault();
+  installPrompt = event;
+  $("#installButton").hidden = false;
+});
+$("#installButton").addEventListener("click", async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice;
+  installPrompt = null;
+  $("#installButton").hidden = true;
 });
 
 setConnectionStatus();
