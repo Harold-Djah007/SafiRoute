@@ -44,7 +44,7 @@ test("atmosphere depicts waybill sheets and a delivery route", () => {
 
 test("service worker cache is bumped with the shell", () => {
   const source = fs.readFileSync(path.join(root, "sw.js"), "utf8");
-  assert.match(source, /safiroute-shell-v16/);
+  assert.match(source, /safiroute-shell-v17/);
 });
 
 test("settings is a grouped list, not stacked panels", () => {

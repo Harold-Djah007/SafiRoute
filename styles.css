@@ -911,7 +911,7 @@ input:focus, textarea:focus, select:focus {
 
 .settings-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) max-content auto;
   align-items: center;
   gap: 12px;
   width: 100%;
@@ -998,7 +998,7 @@ button.settings-row:active,
 .settings-value {
   margin: 0;
   justify-self: end;
-  max-width: 42%;
+  max-width: 12.5rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1069,16 +1069,14 @@ button.settings-row:active,
 
 .settings-notice {
   margin: 0;
-  padding: 10px 12px 12px 53px;
+  padding: 8px 16px 10px 53px;
   border-radius: 0;
   background: transparent;
-  font-size: .8rem;
+  color: var(--green-800);
+  font-size: .78rem;
 }
 .settings-group > .settings-notice {
-  background: #fff6d8;
-}
-.settings-group > .settings-notice::before {
-  left: 0;
+  background: transparent;
 }
 
 .settings-foot {
