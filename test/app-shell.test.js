@@ -24,7 +24,7 @@ test("manifest is valid and provides a maskable app icon", () => {
 
 test("main document exposes the offline form controls", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-  for (const id of ["waybillForm", "signatureCanvas", "authorisedSignature", "dispatchedSignature", "photoInput", "gpsButton", "connectionBadge", "settingsView", "lockScreen", "logoutButton", "importBackup", "settingsPhone", "pinForm", "waybillSearch"]) {
+  for (const id of ["waybillForm", "signatureCanvas", "authorisedSignature", "dispatchedSignature", "photoInput", "gpsButton", "connectionBadge", "settingsView", "lockScreen", "logoutButton", "importBackup", "settingsPhone", "pinForm", "waybillSearch", "settingsSignatureThumb", "pinSaveButton", "iosInstallHint", "settingsPinDetails"]) {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
 });
@@ -44,7 +44,7 @@ test("atmosphere depicts waybill sheets and a delivery route", () => {
 
 test("service worker cache is bumped with the shell", () => {
   const source = fs.readFileSync(path.join(root, "sw.js"), "utf8");
-  assert.match(source, /safiroute-shell-v17/);
+  assert.match(source, /safiroute-shell-v18/);
 });
 
 test("settings is a grouped list, not stacked panels", () => {
@@ -54,6 +54,32 @@ test("settings is a grouped list, not stacked panels", () => {
   assert.match(html, /id=["']pinStatusValue["']/);
   assert.doesNotMatch(html, /settings-hero panel/);
   assert.doesNotMatch(html, /Save sales details/);
+});
+
+test("settings shows a signature thumbnail slot and always-visible iPhone install hint", () => {
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  assert.match(html, /id=["']settingsSignatureThumb["']/);
+  assert.match(html, /id=["']iosInstallHint["']/);
+  assert.match(html, /Share → Add to Home Screen/);
+  assert.match(html, /id=["']pinSaveButton["']/);
+  const css = fs.readFileSync(path.join(root, "styles.css"), "utf8");
+  assert.match(css, /settings-sign-thumb/);
+  assert.match(css, /#settingsForm \.settings-row-commit/);
+});
+
+test("print stylesheet isolates the paper pad", () => {
+  const css = fs.readFileSync(path.join(root, "styles.css"), "utf8");
+  assert.match(css, /@page \{ size: A4 portrait/);
+  assert.match(css, /dialog\[open\]/);
+  assert.match(css, /print-color-adjust: exact/);
+});
+
+test("photos are compressed before IndexedDB and GPS failures reset status", () => {
+  const js = fs.readFileSync(path.join(root, "app.js"), "utf8");
+  assert.match(js, /function compressPhoto/);
+  assert.match(js, /image\/jpeg/);
+  assert.match(js, /gpsErrorMessage/);
+  assert.match(js, /gps-status-error/);
 });
 
 test("waybill dialog follows the Safisana paper pad", () => {

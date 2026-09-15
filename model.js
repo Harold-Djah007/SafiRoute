@@ -34,6 +34,49 @@ export function normalizeItems(waybill) {
   return items;
 }
 
+export function applyProfileDefaults(waybill, profile) {
+  if (!profile?.operatorName) return waybill;
+  waybill.authorisedBy = profile.operatorName;
+  if (!waybill.vehicleNumber && profile.vehicleNumber) waybill.vehicleNumber = profile.vehicleNumber;
+  if (!waybill.authorisedSignature && profile.authorisedSignature) waybill.authorisedSignature = profile.authorisedSignature;
+  return waybill;
+}
+
+export function copyAsNew(source, profile = {}, now = new Date(), random = Math.random) {
+  const waybill = applyProfileDefaults(createEmptyWaybill(now, random), profile);
+  if (!isMeaningfulDraft(source, profile)) return waybill;
+  waybill.customerName = source.customerName || "";
+  waybill.contactName = source.contactName || "";
+  waybill.customerPhone = source.customerPhone || "";
+  waybill.deliveryAddress = source.deliveryAddress || "";
+  waybill.items = normalizeItems({
+    items: (source.items || []).map((item) => ({
+      description: item.description || "",
+      qty: item.qty || "",
+      remarks: item.remarks || ""
+    })),
+    productName: source.productName,
+    quantity: source.quantity
+  });
+  waybill.productName = source.productName || "";
+  waybill.quantity = source.quantity || "";
+  waybill.driverName = source.driverName || "";
+  if (source.vehicleNumber) waybill.vehicleNumber = source.vehicleNumber;
+  waybill.authorisedRemarks = source.authorisedRemarks || "";
+  waybill.receivedBy = source.receivedBy || "";
+  return waybill;
+}
+
+export function gpsErrorMessage(error) {
+  const code = error?.code;
+  if (code === 1) return "Location permission is off. Turn it on for this site, or continue without GPS.";
+  if (code === 2) return "GPS is unavailable right now. Try again outdoors, or continue without GPS.";
+  if (code === 3) return "Location timed out. Try again, or continue without GPS.";
+  return error?.message
+    ? `Location was not captured: ${error.message}`
+    : "Location was not captured. You can still complete the pad without GPS.";
+}
+
 export function createEmptyWaybill(now = new Date(), random = Math.random) {
   return {
     id: globalThis.crypto?.randomUUID?.() ?? `${now.getTime()}-${Math.floor(random() * 1e6)}`,

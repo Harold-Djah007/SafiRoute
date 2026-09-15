@@ -888,11 +888,19 @@ input:focus, textarea:focus, select:focus {
 
 .settings-group {
   display: grid;
-  overflow: hidden;
   border-radius: 14px;
   background: var(--pad-paper);
   border: 1px solid rgba(255, 255, 255, .38);
   box-shadow: 0 12px 28px rgba(0, 0, 0, .14);
+}
+
+.settings-group > :first-child {
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
+}
+.settings-group > :last-child {
+  border-bottom-left-radius: 14px;
+  border-bottom-right-radius: 14px;
 }
 
 .settings-group > * {
@@ -1009,6 +1017,29 @@ button.settings-row:active,
 }
 .settings-value.is-on { color: var(--green-700); font-weight: 800; }
 
+.settings-sign-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+  max-width: 12.5rem;
+  justify-self: end;
+}
+.settings-sign-thumb {
+  display: block;
+  width: 76px;
+  height: 30px;
+  object-fit: contain;
+  object-position: right center;
+  background: #fffdf8;
+  border: 1px solid #e4dcc8;
+  border-radius: 4px;
+}
+.settings-sign-meta .settings-value {
+  max-width: none;
+}
+
 .settings-chevron {
   width: 8px;
   height: 8px;
@@ -1047,9 +1078,28 @@ button.settings-row:active,
   content: none;
 }
 
+.settings-disclose > summary:focus-visible .settings-row,
+button.settings-row:focus-visible,
+.settings-primary:focus-visible,
+.nav-btn:focus-visible,
+.chip:focus-visible,
+.icon-button:focus-visible,
+.card-action:focus-visible,
+.card-copy:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
 .settings-row-commit {
   grid-template-columns: minmax(0, 1fr) auto;
   padding-right: 10px;
+}
+#settingsForm .settings-row-commit {
+  position: sticky;
+  bottom: calc(72px + env(safe-area-inset-bottom));
+  z-index: 3;
+  background: var(--pad-paper);
+  box-shadow: 0 -12px 16px rgba(246, 241, 228, .92);
 }
 .settings-primary {
   min-height: 32px;
@@ -1122,6 +1172,8 @@ button.settings-row:active,
   font-weight: 800;
 }
 
+.gps-status-error { color: var(--danger); font-weight: 700; }
+
 #appShell[hidden],
 #waybillsView[hidden],
 #settingsView[hidden],
@@ -1132,7 +1184,8 @@ button.settings-row:active,
 #logoutButton[hidden],
 #dataNotice[hidden],
 #settingsNotice[hidden],
-#pinNotice[hidden] {
+#pinNotice[hidden],
+#settingsSignatureThumb[hidden] {
   display: none !important;
 }
 
@@ -1252,13 +1305,68 @@ html[data-dir="back"]::view-transition-new(page) {
 }
 
 @media print {
-  .atmosphere, .topbar, .app-nav, .filters, .card-action, .card-copy, .pad-toolbar, .form-actions, .pad-evidence, .howto, .summary, .dash, .list-tools {
+  @page { size: A4 portrait; margin: 8mm; }
+  html, body {
+    background: #fff !important;
+    color: #111;
+  }
+  .atmosphere,
+  .gate,
+  #appShell,
+  .pad-toolbar,
+  .form-actions,
+  .pad-evidence,
+  #formNotice,
+  .add-line,
+  .sign-hint,
+  .sign-line-head [data-clear-sign],
+  .party {
     display: none !important;
   }
-  body, .shell, .panel { background: white; margin: 0; padding: 0; border: 0; box-shadow: none; }
-  .dash h1, .settings h1, .lede, .howto { color: var(--ink); text-shadow: none; }
-  dialog { position: static; width: 100%; max-height: none; box-shadow: none; border-radius: 0; }
-  .waybill-pad { margin: 0; box-shadow: none; }
+  dialog {
+    display: none;
+  }
+  dialog[open] {
+    display: block !important;
+    position: static !important;
+    inset: auto !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    overflow: visible !important;
+  }
+  dialog::backdrop { display: none !important; }
+  #waybillForm { display: block; }
+  .waybill-pad {
+    margin: 0;
+    padding: 6mm;
+    border: 1px solid #333;
+    border-radius: 0;
+    box-shadow: none;
+    background: #fff;
+    color: #111;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .pad-header, .pad-fields, .pad-footer { break-inside: avoid; }
+  .waybill-mark {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .sign-line-surface canvas {
+    height: 16mm;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .waybill-line, .waybill-grid td input {
+    border-bottom-color: #666;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

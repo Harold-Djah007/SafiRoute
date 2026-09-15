@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildBackup, createEmptyWaybill, createWaybillNumber, firstFilledItem, isMeaningfulDraft, mergeWaybills, normalizeItems, parseBackup, summarizeWaybills, validateWaybill } from "../model.js";
+import { applyProfileDefaults, buildBackup, copyAsNew, createEmptyWaybill, createWaybillNumber, firstFilledItem, gpsErrorMessage, isMeaningfulDraft, mergeWaybills, normalizeItems, parseBackup, summarizeWaybills, validateWaybill } from "../model.js";
 
 test("creates stable SafiRoute waybill number format", () => {
   assert.equal(createWaybillNumber(new Date("2026-09-15T10:00:00Z"), () => 0), "SR-20260915-1000");
@@ -94,6 +94,56 @@ test("prefilled sales name does not count as a real draft", () => {
   assert.equal(isMeaningfulDraft(waybill, profile), false);
   waybill.customerName = "Tema Market";
   assert.equal(isMeaningfulDraft(waybill, profile), true);
+});
+
+test("copy as new does not duplicate an empty profile-only pad", () => {
+  const profile = { operatorName: "Ama Boateng", vehicleNumber: "GT 100-26", authorisedSignature: "data:image/png;base64,saved" };
+  const empty = applyProfileDefaults(createEmptyWaybill(new Date("2026-09-15T10:00:00Z"), () => 0), profile);
+  const copy = copyAsNew(empty, profile, new Date("2026-09-15T11:00:00Z"), () => 0.5);
+  assert.equal(isMeaningfulDraft(copy, profile), false);
+  assert.equal(copy.customerName, "");
+  assert.notEqual(copy.id, empty.id);
+  assert.equal(copy.authorisedBy, "Ama Boateng");
+});
+
+test("copy as new clones customer lines but not GPS, photo, or signatures", () => {
+  const profile = { operatorName: "Ama Boateng", authorisedSignature: "data:image/png;base64,saved" };
+  const source = {
+    ...createEmptyWaybill(new Date("2026-09-15T10:00:00Z"), () => 0),
+    customerName: "Tema Market",
+    contactName: "Kojo",
+    deliveryAddress: "Tema",
+    items: [{ description: "Fortifer Organic Fertilizer 50kg", qty: "20", remarks: "50kg" }],
+    productName: "Fortifer Organic Fertilizer 50kg",
+    quantity: "20",
+    driverName: "Yaw",
+    vehicleNumber: "GT 100-26",
+    receivedBy: "Ama Customer",
+    authorisedSignature: "data:image/png;base64,auth",
+    dispatchedSignature: "data:image/png;base64,disp",
+    customerSignature: "data:image/png;base64,cust",
+    photo: "data:image/jpeg;base64,photo",
+    latitude: 5.6,
+    longitude: -0.2
+  };
+  const copy = copyAsNew(source, profile, new Date("2026-09-15T12:00:00Z"), () => 0.4);
+  assert.equal(copy.customerName, "Tema Market");
+  assert.equal(copy.items[0].description, "Fortifer Organic Fertilizer 50kg");
+  assert.equal(copy.driverName, "Yaw");
+  assert.equal(copy.status, "draft");
+  assert.equal(copy.photo, null);
+  assert.equal(copy.latitude, null);
+  assert.equal(copy.customerSignature, null);
+  assert.equal(copy.dispatchedSignature, null);
+  assert.equal(copy.authorisedSignature, "data:image/png;base64,saved");
+  assert.notEqual(copy.number, source.number);
+});
+
+test("GPS errors explain permission, unavailability, and timeout", () => {
+  assert.match(gpsErrorMessage({ code: 1 }), /permission/i);
+  assert.match(gpsErrorMessage({ code: 2 }), /unavailable/i);
+  assert.match(gpsErrorMessage({ code: 3 }), /timed out/i);
+  assert.match(gpsErrorMessage({ message: "nope" }), /nope/);
 });
 
 test("backup files merge by id and keep the newer sheet", () => {

@@ -71,7 +71,7 @@
         <p id="lockRole" class="gate-role"></p>
         <form id="unlockForm" class="gate-form">
           <label id="pinUnlockLabel">Device PIN<input id="unlockPin" type="password" inputmode="numeric" maxlength="4" autocomplete="off" /></label>
-          <p id="lockError" class="gate-error" hidden></p>
+          <p id="lockError" class="gate-error" role="alert" aria-live="assertive" hidden></p>
           <button class="primary" type="submit">Unlock pad</button>
         </form>
       </div>
@@ -139,10 +139,10 @@
               <label class="search-label">Search
                 <input id="waybillSearch" type="search" placeholder="Customer, vehicle, or number" autocomplete="off" />
               </label>
-              <div class="filters" role="tablist" aria-label="Filter waybills">
-                <button type="button" class="chip active" data-filter="all">All</button>
-                <button type="button" class="chip" data-filter="draft">Drafts</button>
-                <button type="button" class="chip" data-filter="completed">Completed</button>
+              <div class="filters" role="group" aria-label="Filter waybills">
+                <button type="button" class="chip active" data-filter="all" aria-pressed="true">All</button>
+                <button type="button" class="chip" data-filter="draft" aria-pressed="false">Drafts</button>
+                <button type="button" class="chip" data-filter="completed" aria-pressed="false">Completed</button>
               </div>
             </div>
           </div>
@@ -226,7 +226,10 @@
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.2h16"/><path d="M14.4 5.2 18.8 9.6 9 19.4H4.6V15Z"/></svg>
               </span>
               <span class="settings-copy"><span class="settings-title">Signature</span></span>
-              <span id="settingsSignatureValue" class="settings-value">Not saved</span>
+              <span class="settings-sign-meta">
+                <img id="settingsSignatureThumb" class="settings-sign-thumb" alt="" hidden />
+                <span id="settingsSignatureValue" class="settings-value">Not saved</span>
+              </span>
               <span class="settings-chevron" aria-hidden="true"></span>
             </span></summary>
             <div class="settings-editor">
@@ -237,7 +240,7 @@
                 </div>
                 <div class="sign-line-surface">
                   <span class="sign-hint">Sign here</span>
-                  <canvas id="salesSignature" width="720" height="140" aria-label="Saved sales signature"></canvas>
+                  <canvas id="salesSignature" width="720" height="140" tabindex="0" aria-label="Saved sales signature"></canvas>
                 </div>
               </div>
               <p class="settings-hint">Sign once. New waybills start with this mark.</p>
@@ -250,7 +253,7 @@
             </span>
             <button class="settings-primary" type="submit">Save</button>
           </div>
-          <p id="settingsNotice" class="notice settings-notice" hidden></p>
+          <p id="settingsNotice" class="notice settings-notice" role="status" aria-live="polite" hidden></p>
         </form>
         <p class="settings-foot">Filled on Authorised by when a customer buys compost. There is still no Safisana company login.</p>
 
@@ -263,7 +266,7 @@
             <span class="settings-copy"><span class="settings-title">PIN</span></span>
             <span id="pinStatusValue" class="settings-value">Off</span>
           </div>
-          <details class="settings-disclose">
+          <details class="settings-disclose" id="settingsPinDetails">
             <summary><span class="settings-row">
               <span class="settings-icon settings-icon-forest" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="4.5" width="14" height="15" rx="2"/><path d="M9 8h.01M12 8h.01M15 8h.01M9 12h.01M12 12h.01M15 12h.01M10.5 16h3"/></svg>
@@ -274,9 +277,15 @@
             <div class="settings-editor">
               <label>New 4-digit PIN<input id="settingsPin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="1234" /></label>
               <label>Confirm PIN<input id="settingsPinConfirm" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" /></label>
-              <button class="settings-primary" type="submit">Save PIN</button>
             </div>
           </details>
+          <div class="settings-row settings-row-commit">
+            <span class="settings-copy">
+              <span class="settings-title">Lock this pad</span>
+              <span class="settings-subtitle">Optional 4-digit PIN</span>
+            </span>
+            <button id="pinSaveButton" class="settings-primary" type="submit">Save PIN</button>
+          </div>
           <button id="removePinButton" type="button" class="settings-row settings-row-quiet" hidden>
             <span class="settings-icon settings-icon-mute" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 10.5V8.2a4 4 0 0 1 8 0"/><rect x="6" y="10.5" width="12" height="9" rx="2"/><path d="M9 15h6"/></svg>
@@ -289,7 +298,7 @@
             </span>
             <span class="settings-copy"><span class="settings-title">Lock pad now</span></span>
           </button>
-          <p id="pinNotice" class="notice settings-notice" hidden></p>
+          <p id="pinNotice" class="notice settings-notice" role="status" aria-live="polite" hidden></p>
         </form>
         <p id="pinStatus" class="settings-foot">No PIN. Anyone with this phone can open the pad.</p>
 
@@ -311,7 +320,7 @@
             </span>
           </button>
           <input id="importBackup" type="file" accept="application/json,.json" hidden />
-          <p id="dataNotice" class="notice settings-notice" hidden></p>
+          <p id="dataNotice" class="notice settings-notice" role="status" aria-live="polite" hidden></p>
         </section>
         <p class="settings-foot">Keep a copy off this phone before clearing browser data.</p>
 
@@ -326,6 +335,15 @@
               <span class="settings-subtitle">Home screen, works offline</span>
             </span>
           </button>
+          <div id="iosInstallHint" class="settings-row">
+            <span class="settings-icon settings-icon-gold" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.8v9.4"/><path d="m8.4 8.2 3.6-3.4 3.6 3.4"/><rect x="6" y="12.5" width="12" height="7" rx="1.6"/></svg>
+            </span>
+            <span class="settings-copy">
+              <span class="settings-title">Add to Home Screen</span>
+              <span class="settings-subtitle">iPhone: Share → Add to Home Screen</span>
+            </span>
+          </div>
           <div class="settings-row">
             <span class="settings-icon settings-icon-mute" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="7.2"/><path d="M12 11.2V16M12 8.2h.01" stroke-linecap="round"/></svg>
@@ -337,11 +355,11 @@
             <span class="settings-value">v0.1</span>
           </div>
         </section>
-        <p class="settings-foot">On iPhone use Share → Add to Home Screen. Compost sales waybill. Server accounts are not on this phone yet.</p>
+        <p class="settings-foot">Compost sales waybill. Chrome may offer Install above. Server accounts are not on this phone yet.</p>
       </main>
 
       <nav id="appNav" class="app-nav" aria-label="App">
-        <button type="button" class="nav-btn active" data-view="waybills">
+        <button type="button" class="nav-btn active" data-view="waybills" aria-current="page">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
             <rect x="5" y="3.5" width="14" height="17" rx="2"/>
             <path d="M8.5 8.5h7M8.5 12.5h7M8.5 16.5h4"/>
@@ -358,13 +376,13 @@
       </nav>
     </div>
 
-    <dialog id="waybillDialog">
+    <dialog id="waybillDialog" aria-labelledby="dialogTitle">
       <form id="waybillForm" method="dialog">
         <div class="pad-toolbar">
           <p id="dialogTitle" class="pad-toolbar-title">New waybill</p>
           <button type="button" id="closeDialogButton" class="icon-button" aria-label="Close">×</button>
         </div>
-        <div id="formNotice" class="notice" hidden></div>
+        <div id="formNotice" class="notice" role="status" aria-live="polite" hidden></div>
 
         <article class="waybill-pad">
           <header class="pad-header">
@@ -420,7 +438,7 @@
                 </div>
                 <div class="sign-line-surface">
                   <span class="sign-hint">Sign on the line</span>
-                  <canvas id="authorisedSignature" width="720" height="140" aria-label="Authorised by signature"></canvas>
+                  <canvas id="authorisedSignature" width="720" height="140" tabindex="0" aria-label="Authorised by signature"></canvas>
                 </div>
               </div>
               <p>Date: <span class="dots short"></span></p>
@@ -436,7 +454,7 @@
                 </div>
                 <div class="sign-line-surface">
                   <span class="sign-hint">Sign on the line</span>
-                  <canvas id="dispatchedSignature" width="720" height="140" aria-label="Dispatched by signature"></canvas>
+                  <canvas id="dispatchedSignature" width="720" height="140" tabindex="0" aria-label="Dispatched by signature"></canvas>
                 </div>
               </div>
               <p>Date: <span class="dots short"></span></p>
@@ -449,7 +467,7 @@
                 </div>
                 <div class="sign-line-surface">
                   <span class="sign-hint">Sign on the line</span>
-                  <canvas id="signatureCanvas" width="720" height="140" aria-label="Received by signature"></canvas>
+                  <canvas id="signatureCanvas" width="720" height="140" tabindex="0" aria-label="Received by signature"></canvas>
                 </div>
               </div>
               <p>Date: <span class="dots short"></span></p>
@@ -460,7 +478,7 @@
             <p class="pad-evidence-label">Field proof (kept on this phone)</p>
             <div class="evidence-row">
               <button type="button" id="gpsButton" class="secondary">Capture GPS</button>
-              <span id="gpsStatus">No location captured</span>
+              <span id="gpsStatus" role="status" aria-live="polite">No location captured</span>
             </div>
             <label class="wide photo-label">Delivery photo<input id="photoInput" name="photoInput" type="file" accept="image/*" capture="environment" /></label>
             <img id="photoPreview" class="photo-preview" alt="Delivery evidence preview" hidden />

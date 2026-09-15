@@ -1,4 +1,4 @@
-import { buildBackup, createEmptyWaybill, firstFilledItem, isMeaningfulDraft, mergeWaybills, normalizeItems, parseBackup, summarizeWaybills, validateWaybill } from "./model.js";
+import { applyProfileDefaults, buildBackup, copyAsNew, createEmptyWaybill, firstFilledItem, gpsErrorMessage, isMeaningfulDraft, mergeWaybills, normalizeItems, parseBackup, summarizeWaybills, validateWaybill } from "./model.js";
 import { deleteWaybill, getProfile, getWaybill, hashPin, listWaybills, saveProfile, saveWaybill, saveWaybills } from "./storage.js";
 
 const state = { active: null, persisted: false };
@@ -11,6 +11,8 @@ let profile = null;
 let listFilter = "all";
 let listQuery = "";
 let installPrompt = null;
+let lastFocus = null;
+let gpsBusy = false;
 const pads = {};
 
 function $(selector) { return document.querySelector(selector); }
@@ -36,12 +38,8 @@ function greeting() {
   return "Good evening";
 }
 
-function applyProfileDefaults(waybill) {
-  if (!profile?.operatorName) return waybill;
-  waybill.authorisedBy = profile.operatorName;
-  if (!waybill.vehicleNumber && profile.vehicleNumber) waybill.vehicleNumber = profile.vehicleNumber;
-  if (!waybill.authorisedSignature && profile.authorisedSignature) waybill.authorisedSignature = profile.authorisedSignature;
-  return waybill;
+function applyProfile(waybill) {
+  return applyProfileDefaults(waybill, profile);
 }
 
 function initials(name) {
@@ -81,7 +79,18 @@ function renderChrome() {
   $("#settingsNameValue").textContent = profile.operatorName;
   $("#settingsPhoneValue").textContent = profile.phone || "Not set";
   $("#settingsVehicleValue").textContent = profile.vehicleNumber || "Not set";
-  $("#settingsSignatureValue").textContent = profile.authorisedSignature ? "Saved" : "Not saved";
+  const thumb = $("#settingsSignatureThumb");
+  const signed = Boolean(profile.authorisedSignature);
+  $("#settingsSignatureValue").textContent = signed ? "Saved" : "Not saved";
+  if (signed) {
+    thumb.src = profile.authorisedSignature;
+    thumb.hidden = false;
+    thumb.alt = "Saved authorised-by mark";
+  } else {
+    thumb.removeAttribute("src");
+    thumb.hidden = true;
+    thumb.alt = "";
+  }
   $("#settingsHeroName").textContent = profile.operatorName;
   $("#settingsHeroMeta").textContent = profile.phone || "Name used on Authorised by";
   $("#settingsAvatar").textContent = initials(profile.operatorName);
@@ -128,7 +137,10 @@ function applyView(name) {
   $("#waybillsView").hidden = name !== "waybills";
   $("#settingsView").hidden = name !== "settings";
   document.querySelectorAll(".nav-btn").forEach((button) => {
-    button.classList.toggle("active", button.dataset.view === name);
+    const on = button.dataset.view === name;
+    button.classList.toggle("active", on);
+    if (on) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
   });
 }
 
@@ -401,9 +413,9 @@ function populateForm(waybill, persisted = false) {
   $("#saveDraftButton").hidden = completed;
   $("#completeButton").hidden = completed;
   $("#deleteButton").hidden = !persisted || completed;
-  $("#gpsStatus").textContent = waybill.latitude == null
-    ? "No location captured"
-    : `${waybill.latitude.toFixed(5)}, ${waybill.longitude.toFixed(5)} (±${Math.round(waybill.gpsAccuracy)} m)`;
+  const gpsStatus = $("#gpsStatus");
+  gpsStatus.classList.remove("gps-status-error");
+  gpsStatus.textContent = locationLabel(waybill);
   photoPreview.hidden = !waybill.photo;
   if (waybill.photo) photoPreview.src = waybill.photo;
   clearErrors();
@@ -449,9 +461,10 @@ async function persist(status) {
     const errors = validateWaybill(waybill);
     if (Object.keys(errors).length) return showErrors(errors);
     const missingProof = waybill.latitude == null && !waybill.photo;
+    const who = waybill.customerName || "this customer";
     const ok = confirm(missingProof
-      ? `Complete ${waybill.number} without GPS or a photo?`
-      : `Complete ${waybill.number} for ${waybill.customerName}?`);
+      ? `Complete ${waybill.number} for ${who} without GPS or a photo?\n\nThe pad becomes read-only on this phone. Server sync is not connected yet.`
+      : `Complete ${waybill.number} for ${who}?\n\nSales, Dispatch, and the customer have signed. This pad becomes read-only on this phone until server sync is connected.`);
     if (!ok) return;
   }
   waybill.status = status;
@@ -462,30 +475,53 @@ async function persist(status) {
   await refreshList();
 }
 
-function copyAsNew(source) {
-  const waybill = applyProfileDefaults(createEmptyWaybill());
-  waybill.customerName = source.customerName || "";
-  waybill.contactName = source.contactName || "";
-  waybill.customerPhone = source.customerPhone || "";
-  waybill.deliveryAddress = source.deliveryAddress || "";
-  waybill.items = normalizeItems({
-    items: (source.items || []).map((item) => ({
-      description: item.description || "",
-      qty: item.qty || "",
-      remarks: item.remarks || ""
-    })),
-    productName: source.productName,
-    quantity: source.quantity
-  });
-  waybill.productName = source.productName || "";
-  waybill.quantity = source.quantity || "";
-  waybill.driverName = source.driverName || "";
-  if (source.vehicleNumber) waybill.vehicleNumber = source.vehicleNumber;
-  return waybill;
+function locationLabel(waybill) {
+  if (waybill?.latitude == null) return "No location captured";
+  return `${waybill.latitude.toFixed(5)}, ${waybill.longitude.toFixed(5)} (±${Math.round(waybill.gpsAccuracy || 0)} m)`;
 }
 
-async function autosaveDraft() {
-  if (!dialog.open || state.active?.status === "completed") return;
+function compressPhoto(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      const max = 1600;
+      const scale = Math.min(1, max / Math.max(image.width, image.height));
+      const width = Math.max(1, Math.round(image.width * scale));
+      const height = Math.max(1, Math.round(image.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        URL.revokeObjectURL(url);
+        reject(new Error("Could not compress that photo."));
+        return;
+      }
+      ctx.drawImage(image, 0, 0, width, height);
+      URL.revokeObjectURL(url);
+      const quality = file.size > 1_200_000 ? 0.7 : 0.82;
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Could not read that photo. Try a JPEG or PNG."));
+    };
+    image.src = url;
+  });
+}
+
+function openPad(waybill, persisted = false) {
+  lastFocus = document.activeElement;
+  populateForm(waybill, persisted);
+  dialog.showModal();
+  const target = field("customerName");
+  if (target && !target.disabled) target.focus();
+}
+
+async function autosaveDraft({ ignoreOpen = false } = {}) {
+  if (!state.active || state.active.status === "completed") return;
+  if (!dialog.open && !ignoreOpen) return;
   const waybill = readForm();
   if (!isMeaningfulDraft(waybill, profile || {})) return;
   waybill.status = "draft";
@@ -503,7 +539,7 @@ function scheduleAutosave() {
   autosaveTimer = setTimeout(() => autosaveDraft().catch((error) => showNotice(`Device save failed: ${error.message}`)), 600);
 }
 
-function attachPad(canvas, { lineWidth = 3 } = {}) {
+function attachPad(canvas, { lineWidth = 3, autosave = true } = {}) {
   const ctx = canvas.getContext("2d");
   const shell = canvas.closest(".sign-line");
   let drawing = false;
@@ -584,7 +620,7 @@ function attachPad(canvas, { lineWidth = 3 } = {}) {
   canvas.addEventListener("pointerup", () => {
     drawing = false;
     shell.classList.remove("is-signing");
-    scheduleAutosave();
+    if (autosave) scheduleAutosave();
   });
   canvas.addEventListener("pointercancel", () => {
     drawing = false;
@@ -592,7 +628,7 @@ function attachPad(canvas, { lineWidth = 3 } = {}) {
   });
   shell.querySelector("[data-clear-sign]")?.addEventListener("click", () => {
     clear(true);
-    scheduleAutosave();
+    if (autosave) scheduleAutosave();
   });
   style();
 
@@ -603,7 +639,7 @@ Object.assign(pads, {
   authorised: attachPad($("#authorisedSignature"), { lineWidth: 2.6 }),
   dispatched: attachPad($("#dispatchedSignature"), { lineWidth: 2.6 }),
   customer: attachPad($("#signatureCanvas"), { lineWidth: 2.6 }),
-  sales: attachPad($("#salesSignature"), { lineWidth: 2.6 })
+  sales: attachPad($("#salesSignature"), { lineWidth: 2.6, autosave: false })
 });
 
 function productSummary(item) {
@@ -648,72 +684,102 @@ async function refreshList() {
     card.querySelector('[data-field="updated"]').textContent = formatDate(item.updatedAt);
     card.querySelector('[data-field="sync"]').textContent = item.syncStatus === "pending" ? "Pending server" : "Device only";
     card.querySelector("[data-open]").addEventListener("click", async () => {
-      populateForm(await getWaybill(item.id), true);
-      dialog.showModal();
+      openPad(await getWaybill(item.id), true);
     });
     card.querySelector("[data-copy]").addEventListener("click", async () => {
-      populateForm(copyAsNew(await getWaybill(item.id)));
-      dialog.showModal();
+      openPad(copyAsNew(await getWaybill(item.id), profile || {}));
     });
     list.append(card);
   });
 }
 
 $("#newWaybillButton").addEventListener("click", () => {
-  populateForm(applyProfileDefaults(createEmptyWaybill()));
-  dialog.showModal();
+  openPad(applyProfile(createEmptyWaybill()));
 });
-$("#closeDialogButton").addEventListener("click", async () => {
-  await autosaveDraft();
-  dialog.close();
+$("#closeDialogButton").addEventListener("click", () => dialog.close());
+dialog.addEventListener("close", () => {
+  const restore = lastFocus;
+  autosaveDraft({ ignoreOpen: true }).catch((error) => console.error(error)).finally(() => {
+    restore?.focus?.();
+  });
 });
 $("#addLineButton").addEventListener("click", addItemRow);
 $("#saveDraftButton").addEventListener("click", () => persist("draft"));
 $("#completeButton").addEventListener("click", () => persist("completed"));
 $("#printButton").addEventListener("click", () => window.print());
-$("#copyWaybillButton").addEventListener("click", () => {
+$("#copyWaybillButton").addEventListener("click", async () => {
   if (!state.active) return;
-  populateForm(copyAsNew(readForm()));
+  clearTimeout(autosaveTimer);
+  const source = readForm();
+  const copied = isMeaningfulDraft(source, profile || {});
+  if (state.persisted && source.status !== "completed" && copied) {
+    source.status = "draft";
+    source.syncStatus = "local_only";
+    await saveWaybill(source);
+  }
+  populateForm(copyAsNew(source, profile || {}));
+  field("customerName")?.focus();
+  showNotice(copied
+    ? "This is a new pad with a new number. The original stays on this phone."
+    : "Nothing to copy yet. This is a fresh pad.");
 });
 $("#deleteButton").addEventListener("click", async () => {
   if (!confirm(`Delete ${state.active.number} from this device?`)) return;
   await deleteWaybill(state.active.id);
+  state.active = null;
+  state.persisted = false;
   dialog.close();
   await refreshList();
 });
 
 $("#gpsButton").addEventListener("click", () => {
-  if (!navigator.geolocation) return showNotice("GPS is not available on this device.");
-  $("#gpsStatus").textContent = "Capturing location…";
+  if (!navigator.geolocation) return showNotice("GPS is not available on this device. You can still complete the pad without it.");
+  if (gpsBusy) return;
+  gpsBusy = true;
+  const status = $("#gpsStatus");
+  status.classList.remove("gps-status-error");
+  status.textContent = "Capturing location…";
   navigator.geolocation.getCurrentPosition(
     (position) => {
+      gpsBusy = false;
       state.active.latitude = position.coords.latitude;
       state.active.longitude = position.coords.longitude;
       state.active.gpsAccuracy = position.coords.accuracy;
       state.active.gpsCapturedAt = new Date(position.timestamp).toISOString();
-      $("#gpsStatus").textContent = `${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)} (±${Math.round(position.coords.accuracy)} m)`;
+      status.textContent = locationLabel(state.active);
       scheduleAutosave();
     },
-    (error) => showNotice(`Location was not captured: ${error.message}`),
+    (error) => {
+      gpsBusy = false;
+      status.classList.add("gps-status-error");
+      status.textContent = state.active?.latitude == null ? "No location captured" : locationLabel(state.active);
+      showNotice(gpsErrorMessage(error));
+    },
     { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
   );
 });
 
-$("#photoInput").addEventListener("change", (event) => {
-  const [file] = event.target.files;
+$("#photoInput").addEventListener("change", async (event) => {
+  const input = event.target;
+  const [file] = input.files;
   if (!file) return;
-  if (file.size > 5 * 1024 * 1024) {
-    event.target.value = "";
-    return showNotice("Please use a photo smaller than 5 MB for reliable offline storage.");
+  if (file.size > 20 * 1024 * 1024) {
+    input.value = "";
+    return showNotice("That photo is over 20 MB. Try a smaller camera shot.");
   }
-  const reader = new FileReader();
-  reader.onload = () => {
-    state.active.photo = reader.result;
-    photoPreview.src = reader.result;
+  showNotice("Compressing photo for this phone…");
+  try {
+    const dataUrl = await compressPhoto(file);
+    state.active.photo = dataUrl;
+    photoPreview.src = dataUrl;
     photoPreview.hidden = false;
+    showNotice("Photo saved on this phone.");
     scheduleAutosave();
-  };
-  reader.readAsDataURL(file);
+  } catch (error) {
+    showNotice(error.message);
+  } finally {
+    input.value = "";
+  }
 });
 
 $("#exportButton").addEventListener("click", async () => {
@@ -772,7 +838,11 @@ document.querySelectorAll(".nav-btn").forEach((button) => {
 document.querySelectorAll("[data-filter]").forEach((button) => {
   button.addEventListener("click", async () => {
     listFilter = button.dataset.filter;
-    document.querySelectorAll("[data-filter]").forEach((chip) => chip.classList.toggle("active", chip === button));
+    document.querySelectorAll("[data-filter]").forEach((chip) => {
+      const on = chip === button;
+      chip.classList.toggle("active", on);
+      chip.setAttribute("aria-pressed", on ? "true" : "false");
+    });
     await refreshList();
   });
 });
@@ -784,7 +854,10 @@ $("#waybillSearch").addEventListener("input", async (event) => {
 document.querySelectorAll("#settingsView details.settings-disclose").forEach((block) => {
   block.addEventListener("toggle", () => {
     if (!block.open) return;
-    block.querySelector("input")?.focus();
+    document.querySelectorAll("#settingsView details.settings-disclose").forEach((other) => {
+      if (other !== block) other.open = false;
+    });
+    block.querySelector("input, canvas")?.focus();
   });
 });
 
@@ -827,9 +900,13 @@ $("#pinForm").addEventListener("submit", async (event) => {
   const pin = $("#settingsPin").value.trim();
   const confirmPin = $("#settingsPinConfirm").value.trim();
   if (!/^\d{4}$/.test(pin)) {
+    $("#settingsPinDetails").open = true;
+    $("#settingsPin")?.focus();
     return showSettingsNotice("#pinNotice", "Use a 4-digit PIN.");
   }
   if (pin !== confirmPin) {
+    $("#settingsPinDetails").open = true;
+    $("#settingsPinConfirm")?.focus();
     return showSettingsNotice("#pinNotice", "Those PINs do not match.");
   }
   profile = { ...profile, pinHash: await hashPin(pin), updatedAt: new Date().toISOString() };
