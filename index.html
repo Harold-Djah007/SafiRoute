@@ -134,12 +134,15 @@
               <p>Date: <span class="dots short"></span></p>
               <p class="certify">I certify that I have received the above items.</p>
               <label><span>Received by:</span><input name="receivedBy" class="waybill-line" /></label>
-              <div class="sign-box" data-sign="received">
-                <div class="signature-heading">
+              <div class="sign-line" data-sign="received">
+                <div class="sign-line-head">
                   <span>Signature:</span>
                   <button type="button" id="clearSignatureButton" data-clear-sign class="text-button">Clear</button>
                 </div>
-                <canvas id="signatureCanvas" width="800" height="260" aria-label="Customer signature pad"></canvas>
+                <div class="sign-line-surface">
+                  <span class="sign-hint">Sign on the line</span>
+                  <canvas id="signatureCanvas" width="720" height="140" aria-label="Received by signature"></canvas>
+                </div>
               </div>
               <p>Date: <span class="dots short"></span></p>
             </div>

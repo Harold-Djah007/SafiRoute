@@ -209,7 +209,7 @@ function scheduleAutosave() {
 
 function attachPad(canvas, { lineWidth = 3 } = {}) {
   const ctx = canvas.getContext("2d");
-  const shell = canvas.closest(".sign-line, .sign-box");
+  const shell = canvas.closest(".sign-line");
   let drawing = false;
   let dirty = false;
   let present = false;
@@ -306,7 +306,7 @@ function attachPad(canvas, { lineWidth = 3 } = {}) {
 Object.assign(pads, {
   authorised: attachPad($("#authorisedSignature"), { lineWidth: 2.6 }),
   dispatched: attachPad($("#dispatchedSignature"), { lineWidth: 2.6 }),
-  customer: attachPad($("#signatureCanvas"), { lineWidth: 5 })
+  customer: attachPad($("#signatureCanvas"), { lineWidth: 2.6 })
 });
 
 function productSummary(item) {
