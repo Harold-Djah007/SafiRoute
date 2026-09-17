@@ -1,0 +1,363 @@
+/* Safisana paper-waybill treatment for the Sales PWA.
+   This deliberately keeps the existing SafiRoute brand while making the
+   creation flow feel familiar to staff who already use the physical pad. */
+
+.sales-editor {
+  --paper-blue: #eef8f6;
+  --paper-blue-deep: #e2f1ef;
+  --paper-rule: rgba(45, 88, 78, .18);
+  --paper-ink: #173b29;
+  --paper-muted: #667a72;
+}
+
+.sales-editor .sales-paper-card,
+.sales-editor .sales-form-card {
+  box-shadow: none;
+}
+
+.sales-editor .sales-paper-card {
+  position: relative;
+  overflow: hidden;
+  padding: 16px 15px 13px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.58), rgba(255,255,255,.08)),
+    var(--paper-blue-deep);
+  border: 1px solid rgba(38, 88, 73, .24);
+  border-bottom-color: rgba(38, 88, 73, .34);
+  border-radius: 12px 12px 3px 3px;
+}
+
+.sales-editor .sales-paper-card::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 5px;
+  opacity: .45;
+  background: repeating-linear-gradient(90deg, var(--sr-forest-800) 0 14px, transparent 14px 22px);
+}
+
+.sales-editor .sales-paper-brand img {
+  width: 42px;
+  height: 42px;
+  border-radius: 9px;
+}
+
+.sales-editor .sales-paper-brand b {
+  color: #52665d;
+  letter-spacing: .04em;
+}
+
+.sales-editor .sales-paper-brand strong {
+  color: var(--paper-ink);
+  font-size: 1.32rem;
+  letter-spacing: .06em;
+}
+
+.sales-editor .sales-paper-number b {
+  padding: 5px 0 3px;
+  color: #365349;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px dotted #6e8a80;
+  font-size: .72rem;
+}
+
+.sales-editor .sales-paper-help {
+  margin-top: 12px;
+  color: #52665d;
+}
+
+.sales-editor .sales-form-card:not(.sales-paper-card) {
+  position: relative;
+  padding: 16px 15px;
+  background-color: var(--paper-blue);
+  background-image:
+    repeating-linear-gradient(
+      180deg,
+      transparent 0,
+      transparent 31px,
+      rgba(70, 111, 101, .055) 31px,
+      rgba(70, 111, 101, .055) 32px
+    );
+  border: 1px solid rgba(38, 88, 73, .18);
+  border-radius: 4px;
+}
+
+.sales-editor .sales-step-heading {
+  margin: -2px 0 6px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid rgba(38, 88, 73, .18);
+}
+
+.sales-editor .sales-step-heading > span {
+  width: 27px;
+  height: 27px;
+  flex-basis: 27px;
+  color: var(--paper-ink);
+  background: transparent;
+  border: 1px solid rgba(38, 88, 73, .35);
+  border-radius: 50%;
+  box-shadow: none;
+}
+
+.sales-editor .sales-step-heading h2 {
+  color: var(--paper-ink);
+}
+
+.sales-editor .sales-step-heading p {
+  color: var(--paper-muted);
+}
+
+/* Physical-pad style writing lines instead of floating app inputs. */
+.sales-editor .sales-field {
+  gap: 3px;
+  color: #4c6359;
+  font-size: .66rem;
+  letter-spacing: .015em;
+}
+
+.sales-editor .sales-field input,
+.sales-editor .sales-field textarea {
+  min-height: 38px;
+  padding: 7px 2px 5px;
+  color: #182d23;
+  background: transparent;
+  border: 0;
+  border-bottom: 1.5px dotted #738d83;
+  border-radius: 0;
+  box-shadow: none;
+  font-size: .84rem;
+  font-weight: 600;
+}
+
+.sales-editor .sales-field textarea {
+  min-height: 58px;
+  line-height: 1.65;
+  background-image: repeating-linear-gradient(
+    180deg,
+    transparent 0,
+    transparent 25px,
+    rgba(87, 119, 109, .18) 25px,
+    rgba(87, 119, 109, .18) 26px
+  );
+  border-bottom: 0;
+}
+
+.sales-editor .sales-field input:focus,
+.sales-editor .sales-field textarea:focus {
+  border-color: var(--sr-forest-700);
+  box-shadow: 0 2px 0 rgba(15,92,46,.22);
+}
+
+.sales-editor .sales-field input:disabled,
+.sales-editor .sales-field textarea:disabled {
+  color: #42574d;
+  background: transparent;
+  opacity: .9;
+}
+
+/* The paper pad uses one ruled item grid. Keep that visual on a phone. */
+.sales-editor .sales-mobile-lines {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+  background: rgba(255,255,255,.18);
+  border: 1px solid rgba(38, 88, 73, .28);
+  border-radius: 3px;
+}
+
+.sales-editor .sales-mobile-line {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(58px, .45fr) minmax(0, 1fr);
+  gap: 0;
+  padding: 0 0 0 27px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.sales-editor .sales-mobile-line + .sales-mobile-line {
+  border-top: 1px solid rgba(38, 88, 73, .24);
+}
+
+.sales-editor .sales-mobile-line-number {
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 27px;
+  height: auto;
+  color: #60766c;
+  background: rgba(33, 88, 70, .055);
+  border: 0;
+  border-right: 1px solid rgba(38, 88, 73, .24);
+  border-radius: 0;
+  font-size: .62rem;
+}
+
+.sales-editor .sales-mobile-line .sales-field,
+.sales-editor .sales-mobile-line .sales-field-wide {
+  grid-column: auto;
+  gap: 0;
+  padding: 7px 7px 6px;
+  border-right: 1px solid rgba(38, 88, 73, .18);
+}
+
+.sales-editor .sales-mobile-line .sales-field:last-child {
+  border-right: 0;
+}
+
+.sales-editor .sales-mobile-line .sales-field input {
+  min-height: 34px;
+  padding: 5px 1px 2px;
+  border-bottom-color: rgba(82, 116, 104, .42);
+  font-size: .76rem;
+}
+
+.sales-editor .sales-mobile-line .sales-field:nth-of-type(2) input {
+  text-align: center;
+}
+
+.sales-editor .sales-add-line {
+  margin-top: 10px;
+  border-style: dashed;
+  background: rgba(255,255,255,.45);
+}
+
+/* Signature pads should look like the signature lines on the real waybill,
+   not like large white drawing boxes. The actual canvas remains full-width so
+   a finger/stylus has enough touch area, but only the line is visually present. */
+.sales-signature-grid {
+  align-items: end;
+}
+
+.sales-signature {
+  min-width: 0;
+  padding: 8px 2px 2px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.sales-signature-head {
+  margin-bottom: 1px;
+}
+
+.sales-signature-label {
+  color: #3b5549;
+  font-size: .68rem;
+}
+
+.sales-signature-hint {
+  color: #83928b;
+  font-size: .56rem;
+}
+
+.sales-signature-surface {
+  position: relative;
+  height: 76px;
+  overflow: visible;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.sales-signature-surface::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 14px;
+  z-index: 1;
+  height: 1px;
+  background: #5e746a;
+  pointer-events: none;
+}
+
+.sales-signature-surface canvas {
+  position: relative;
+  z-index: 2;
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.sales-signature-line-caption {
+  position: absolute;
+  right: 2px;
+  bottom: -2px;
+  z-index: 3;
+  color: #87958e;
+  font-size: .52rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  pointer-events: none;
+  text-transform: uppercase;
+}
+
+.sales-signature-readonly > div {
+  padding: 6px 2px 1px;
+  background: transparent;
+  border-radius: 0;
+}
+
+.sales-signature-readonly img {
+  height: 64px;
+  object-fit: contain;
+  background: transparent;
+  border-bottom: 1px solid #5e746a;
+  border-radius: 0;
+}
+
+/* Proof rows stay modern because camera/GPS are digital-only controls, but
+   their surface is flattened so the whole document still reads as one pad. */
+.sales-editor .sales-proof-card {
+  background: rgba(255,255,255,.38);
+  border: 1px solid rgba(38, 88, 73, .14);
+  border-radius: 7px;
+}
+
+.sales-editor .sales-proof-card > button,
+.sales-editor .sales-photo-button {
+  background: rgba(255,255,255,.72);
+  border-radius: 7px;
+}
+
+@media (max-width: 520px) {
+  .sales-editor .sales-form-card:not(.sales-paper-card),
+  .sales-editor .sales-paper-card {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .sales-editor .sales-form-grid {
+    gap: 9px;
+  }
+
+  .sales-editor .sales-mobile-line {
+    grid-template-columns: minmax(0, 1.55fr) minmax(52px, .5fr) minmax(0, .9fr);
+  }
+
+  .sales-editor .sales-mobile-line .sales-field {
+    padding-left: 5px;
+    padding-right: 5px;
+    font-size: .58rem;
+  }
+
+  .sales-editor .sales-mobile-line .sales-field input {
+    font-size: .7rem;
+  }
+
+  .sales-signature-grid,
+  .sales-signature-readonly {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .sales-signature-surface {
+    height: 72px;
+  }
+}
