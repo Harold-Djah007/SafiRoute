@@ -99,23 +99,16 @@ async function proxy(request: NextRequest, path: string[]) {
   }
 }
 
-type RouteContext = { params: { path: string[] } };
+type RouteContext = { params: Promise<{ path: string[] }> };
 
-export function GET(request: NextRequest, context: RouteContext) {
-  return proxy(request, context.params.path);
+async function handle(request: NextRequest, context: RouteContext) {
+  const { path } = await context.params;
+  return proxy(request, path);
 }
-export function POST(request: NextRequest, context: RouteContext) {
-  return proxy(request, context.params.path);
-}
-export function PUT(request: NextRequest, context: RouteContext) {
-  return proxy(request, context.params.path);
-}
-export function PATCH(request: NextRequest, context: RouteContext) {
-  return proxy(request, context.params.path);
-}
-export function DELETE(request: NextRequest, context: RouteContext) {
-  return proxy(request, context.params.path);
-}
-export function OPTIONS(request: NextRequest, context: RouteContext) {
-  return proxy(request, context.params.path);
-}
+
+export const GET = handle;
+export const POST = handle;
+export const PUT = handle;
+export const PATCH = handle;
+export const DELETE = handle;
+export const OPTIONS = handle;
