@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import "./globals.css";
 import "./sales-mobile.css";
+import "./sales-mobile-polish.css";
 
 export const metadata: Metadata = {
   title: "SafiRoute — Every delivery. Verified.",
