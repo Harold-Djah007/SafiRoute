@@ -29,6 +29,7 @@ staticfiles/
 .env
 .env.*
 !.env.example
+!**/.env.example
 
 # Node / Next.js
 node_modules/
@@ -93,3 +94,8 @@ tmp/
 logs/
 *.sqlite
 *.db
+backend/backups/
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+frontend/playwright/.cache/
