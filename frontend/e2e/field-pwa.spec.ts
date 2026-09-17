@@ -33,16 +33,13 @@ test.describe("installable field PWA", () => {
       .toBe("active");
 
     await page.goto("/field");
-    await page.waitForLoadState("domcontentloaded");
+    await expect(page.getByRole("heading", { name: "Today's runs" })).toBeVisible();
 
     await context.setOffline(true);
-    const response = await page.goto("/", { waitUntil: "domcontentloaded" });
-    expect(response?.ok() || response?.status() === 200).toBeTruthy();
+    const response = await page.goto("/field", { waitUntil: "domcontentloaded" });
+    expect(response).not.toBeNull();
     await expect(page.locator("body")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
-
-    const fieldOffline = await page.goto("/field", { waitUntil: "domcontentloaded" });
-    expect(fieldOffline).not.toBeNull();
-    await expect(page.locator("body")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Today's runs" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Download for offline" })).toBeVisible();
   });
 });
