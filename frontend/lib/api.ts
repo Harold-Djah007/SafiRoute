@@ -103,6 +103,7 @@ export type Waybill = {
   gps_unavailable_reason: string;
   customer_rep_name: string;
   customer_rep_role: string;
+  authorised_signature: string | null;
   customer_signature: string | null;
   driver_signature: string | null;
   delivery_notes: string;
@@ -191,7 +192,7 @@ export async function api<T = unknown>(path: string, options: RequestInit = {}):
   if (!res.ok) {
     const detail =
       (typeof data.detail === "string" && data.detail) ||
-      `Could not reach the SafiRoute API (${res.status}). Start Django with: python manage.py runserver 127.0.0.1:8877`;
+      `Could not reach the SafiRoute API (${res.status}). Start Django and try again.`;
     throw new Error(detail);
   }
   return data as T;
