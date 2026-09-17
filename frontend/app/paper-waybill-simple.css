@@ -1,0 +1,494 @@
+/* A deliberately minimal digital copy of the Safisana paper waybill.
+   The form should feel like filling the existing pad, not a multi-step app. */
+
+.sales-editor-paper-simple {
+  --wb-paper: #eaf5f3;
+  --wb-paper-deep: #deeeeb;
+  --wb-ink: #203f35;
+  --wb-muted: #637970;
+  --wb-rule: rgba(48, 91, 78, .36);
+  --wb-soft-rule: rgba(48, 91, 78, .16);
+}
+
+.paper-editor-head {
+  margin-bottom: 2px;
+}
+
+.paper-waybill-sheet {
+  overflow: hidden;
+  color: var(--wb-ink);
+  background:
+    linear-gradient(rgba(255,255,255,.34), rgba(255,255,255,.06)),
+    var(--wb-paper);
+  border: 1px solid rgba(39, 87, 72, .28);
+  border-radius: 8px;
+  box-shadow: 0 12px 30px rgba(4, 21, 12, .08);
+}
+
+.paper-waybill-header {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) auto minmax(150px, .95fr);
+  align-items: start;
+  gap: 14px;
+  padding: 18px 16px 14px;
+  background: rgba(255,255,255,.16);
+  border-bottom: 1px solid var(--wb-soft-rule);
+}
+
+.paper-waybill-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.paper-waybill-brand img {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+}
+
+.paper-waybill-brand div {
+  display: grid;
+  gap: 1px;
+}
+
+.paper-waybill-brand strong {
+  color: #315649;
+  font-size: .88rem;
+}
+
+.paper-waybill-brand span {
+  color: #173b29;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.08rem;
+  letter-spacing: .05em;
+}
+
+.paper-waybill-number {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding-top: 8px;
+}
+
+.paper-waybill-number small {
+  color: #6b7d75;
+  font-size: .56rem;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.paper-waybill-number b {
+  padding: 3px 5px 2px;
+  border-bottom: 1px dotted var(--wb-rule);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .72rem;
+}
+
+.paper-company-copy {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  color: #50675e;
+  font-size: .58rem;
+  line-height: 1.25;
+}
+
+.paper-company-copy b {
+  color: #2b493e;
+  font-size: .62rem;
+}
+
+.paper-top-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(118px, .7fr);
+  gap: 0 14px;
+  padding: 12px 16px 10px;
+}
+
+.paper-line-field {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: end;
+  gap: 6px;
+  min-width: 0;
+  min-height: 38px;
+  color: #415b51;
+  font-size: .67rem;
+  font-weight: 700;
+}
+
+.paper-line-field input,
+.paper-line-field textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 30px;
+  padding: 5px 2px 2px;
+  color: #152d24;
+  background: transparent;
+  border: 0;
+  border-bottom: 1.5px dotted var(--wb-rule);
+  border-radius: 0;
+  outline: 0;
+  font-size: .82rem;
+  font-weight: 600;
+}
+
+.paper-line-field input:focus,
+.paper-line-field textarea:focus {
+  border-bottom-color: #0f5c2e;
+  box-shadow: 0 2px 0 rgba(15,92,46,.14);
+}
+
+.paper-line-field input:disabled,
+.paper-line-field textarea:disabled {
+  color: #42584f;
+  opacity: .92;
+}
+
+.paper-field-wide {
+  min-width: 0;
+}
+
+.paper-address-line {
+  grid-column: 1 / -1;
+}
+
+.paper-items-table {
+  position: relative;
+  margin-top: 2px;
+  border-top: 1px solid var(--wb-rule);
+  border-bottom: 1px solid var(--wb-rule);
+}
+
+.paper-items-head,
+.paper-item-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.9fr) minmax(110px, .85fr);
+}
+
+.paper-items-head {
+  min-height: 34px;
+  align-items: center;
+  background: rgba(53, 105, 88, .08);
+  border-bottom: 1px solid var(--wb-rule);
+  font-size: .68rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.paper-items-head span + span,
+.paper-item-row > * + * {
+  border-left: 1px solid var(--wb-rule);
+}
+
+.paper-item-row {
+  min-height: 42px;
+  border-bottom: 1px solid var(--wb-soft-rule);
+}
+
+.paper-item-row input {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 9px;
+  color: #183127;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font-size: .78rem;
+}
+
+.paper-item-row input:focus {
+  background: rgba(255,255,255,.26);
+  box-shadow: inset 0 -2px rgba(15,92,46,.2);
+}
+
+.paper-add-row {
+  width: 100%;
+  min-height: 34px;
+  color: #315b4c;
+  background: rgba(255,255,255,.16);
+  border: 0;
+  font-size: .65rem;
+  font-weight: 800;
+}
+
+.paper-signoff-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  padding: 18px 16px 20px;
+}
+
+.paper-signoff-column {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-width: 0;
+}
+
+.paper-signoff-column .sales-signature {
+  padding: 1px 0 0;
+}
+
+.paper-signoff-column .sales-signature-head {
+  margin-bottom: -2px;
+}
+
+.paper-signoff-column .sales-signature-surface {
+  height: 62px;
+}
+
+.paper-signoff-column .sales-signature-surface::after {
+  bottom: 9px;
+}
+
+.paper-static-line {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: end;
+  gap: 6px;
+  min-height: 32px;
+  color: #415b51;
+  font-size: .67rem;
+  font-weight: 700;
+}
+
+.paper-static-line b {
+  min-height: 25px;
+  padding: 4px 2px 2px;
+  border-bottom: 1.5px dotted var(--wb-rule);
+  font-size: .73rem;
+  font-weight: 600;
+}
+
+.paper-remarks-field {
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: start;
+}
+
+.paper-remarks-field textarea {
+  min-height: 76px;
+  line-height: 25px;
+  resize: vertical;
+  background-image: repeating-linear-gradient(
+    180deg,
+    transparent 0,
+    transparent 24px,
+    rgba(48,91,78,.2) 24px,
+    rgba(48,91,78,.2) 25px
+  );
+  border-bottom: 0;
+}
+
+.paper-certification {
+  margin: 8px 0 1px;
+  color: #314e43;
+  font-size: .66rem;
+  line-height: 1.4;
+}
+
+.paper-readonly-signature {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  align-items: end;
+  gap: 6px;
+  min-height: 62px;
+  color: #415b51;
+  font-size: .67rem;
+  font-weight: 700;
+}
+
+.paper-readonly-signature img {
+  width: 100%;
+  height: 58px;
+  object-fit: contain;
+  border-bottom: 1px solid #5e746a;
+}
+
+.paper-digital-proof {
+  margin-top: 10px;
+  overflow: hidden;
+  background: rgba(255,250,240,.72);
+  border: 1px solid rgba(15,92,46,.1);
+  border-radius: 11px;
+}
+
+.paper-digital-proof summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 9px 12px;
+  color: #425a50;
+  cursor: pointer;
+  font-size: .72rem;
+  font-weight: 800;
+  list-style: none;
+}
+
+.paper-digital-proof summary::-webkit-details-marker {
+  display: none;
+}
+
+.paper-digital-proof summary::after {
+  content: "+";
+  color: #668077;
+  font-size: 1rem;
+}
+
+.paper-digital-proof[open] summary::after {
+  content: "−";
+}
+
+.paper-digital-proof summary span {
+  margin-left: auto;
+  margin-right: 10px;
+  color: #89968f;
+  font-size: .58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.paper-digital-proof-body {
+  display: grid;
+  gap: 1px;
+  padding: 0 10px 10px;
+}
+
+.paper-proof-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 3px;
+  border-top: 1px solid rgba(15,92,46,.08);
+}
+
+.paper-proof-row div {
+  display: grid;
+  gap: 2px;
+}
+
+.paper-proof-row b {
+  color: #345347;
+  font-size: .69rem;
+}
+
+.paper-proof-row small {
+  color: #849189;
+  font-size: .59rem;
+}
+
+.paper-proof-row button,
+.paper-photo-button {
+  min-height: 34px;
+  padding: 6px 10px;
+  color: #0f5c2e;
+  background: #fff;
+  border: 1px solid rgba(15,92,46,.14);
+  border-radius: 8px;
+  font-size: .63rem;
+  font-weight: 800;
+}
+
+.paper-photo-button {
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.paper-photo-button input {
+  display: none;
+}
+
+.paper-waybill-actions {
+  display: grid;
+  grid-template-columns: auto 1fr 1.25fr;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px;
+  background: rgba(248,243,231,.94);
+  border: 1px solid rgba(15,92,46,.1);
+  border-radius: 14px;
+  box-shadow: 0 10px 26px rgba(4,21,12,.1);
+}
+
+.paper-waybill-actions .sales-primary-button,
+.paper-waybill-actions .sales-secondary-button {
+  min-height: 44px;
+}
+
+.paper-delete-link {
+  padding: 0 8px;
+  color: #9a4b3d;
+  background: transparent;
+  border: 0;
+  font-size: .63rem;
+  font-weight: 800;
+}
+
+@media (max-width: 600px) {
+  .paper-waybill-header {
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    padding: 14px 12px 12px;
+  }
+
+  .paper-company-copy {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, max-content);
+    justify-content: space-between;
+    gap: 2px 10px;
+    padding-top: 7px;
+    border-top: 1px solid var(--wb-soft-rule);
+  }
+
+  .paper-top-fields {
+    grid-template-columns: minmax(0, 1.35fr) minmax(105px, .75fr);
+    gap: 0 9px;
+    padding: 10px 12px 8px;
+  }
+
+  .paper-line-field {
+    gap: 4px;
+    font-size: .6rem;
+  }
+
+  .paper-line-field input,
+  .paper-line-field textarea {
+    font-size: .75rem;
+  }
+
+  .paper-items-head,
+  .paper-item-row {
+    grid-template-columns: minmax(0, 1.65fr) minmax(90px, .9fr);
+  }
+
+  .paper-item-row input {
+    padding: 6px;
+    font-size: .72rem;
+  }
+
+  .paper-signoff-grid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    padding: 16px 12px 18px;
+  }
+
+  .paper-signoff-column + .paper-signoff-column {
+    padding-top: 15px;
+    border-top: 1px solid var(--wb-rule);
+  }
+
+  .paper-waybill-actions {
+    grid-template-columns: 1fr 1.25fr;
+  }
+
+  .paper-delete-link {
+    grid-column: 1 / -1;
+    min-height: 30px;
+  }
+}
