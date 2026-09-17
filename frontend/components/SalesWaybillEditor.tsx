@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SignaturePad } from "@/components/SignaturePad";
 import { readUser } from "@/lib/api";
@@ -16,8 +16,6 @@ import {
   refreshSalesReferences,
   saveSalesWaybill,
   syncSalesWaybill,
-  validateSalesWaybill,
-  waybillChecklist,
   type SalesMobileReferences,
   type SalesMobileSettings,
   type SalesWaybill,
@@ -64,13 +62,19 @@ function fileToCompressedDataUrl(file: File): Promise<string> {
   });
 }
 
-function proofLabel(waybill: SalesWaybill) {
-  if (waybill.latitude != null && waybill.longitude != null) {
-    return `${waybill.latitude.toFixed(5)}, ${waybill.longitude.toFixed(5)}${
-      waybill.gpsAccuracy ? ` · ±${Math.round(waybill.gpsAccuracy)}m` : ""
-    }`;
-  }
-  return waybill.gpsUnavailableReason || "No location captured yet";
+function paperValidation(waybill: SalesWaybill) {
+  const missing: string[] = [];
+  const hasDescription = waybill.items.some((item) => item.description.trim());
+  if (!waybill.deliverTo.trim()) missing.push("Deliver to");
+  if (!waybill.deliveryAddress.trim()) missing.push("Address");
+  if (!hasDescription) missing.push("Description");
+  if (!waybill.authorisedBy.trim()) missing.push("Authorised by");
+  if (!waybill.authorisedSignature) missing.push("Authorised signature");
+  if (!waybill.dispatchedBy.trim()) missing.push("Dispatched by");
+  if (!waybill.dispatchedSignature) missing.push("Dispatch signature");
+  if (!waybill.receivedBy.trim()) missing.push("Received by");
+  if (!waybill.customerSignature) missing.push("Received signature");
+  return missing;
 }
 
 export function SalesWaybillEditor({ waybillId }: Props) {
@@ -96,17 +100,12 @@ export function SalesWaybillEditor({ waybillId }: Props) {
     ]).then(([profile, existing, cachedReferences]) => {
       setSettings(profile);
       setReferences(cachedReferences);
-      if (waybillId && !existing) {
-        setMissingRecord(true);
-      } else {
-        setWaybill(existing || createSalesWaybill(user.full_name, profile));
-      }
+      if (waybillId && !existing) setMissingRecord(true);
+      else setWaybill(existing || createSalesWaybill(user.full_name, profile));
       setReady(true);
     });
 
-    if (navigator.onLine) {
-      void refreshSalesReferences().then(setReferences);
-    }
+    if (navigator.onLine) void refreshSalesReferences().then(setReferences);
   }, [waybillId]);
 
   useEffect(() => {
@@ -114,7 +113,7 @@ export function SalesWaybillEditor({ waybillId }: Props) {
     if (autosaveRef.current) clearTimeout(autosaveRef.current);
     autosaveRef.current = setTimeout(() => {
       void saveSalesWaybill(waybill).then(() => {
-        setSaveNote(`Saved on this phone at ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
+        setSaveNote(`Saved ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
         window.dispatchEvent(new Event("safiroute:saved"));
       });
     }, 650);
@@ -123,8 +122,6 @@ export function SalesWaybillEditor({ waybillId }: Props) {
     };
   }, [ready, waybill]);
 
-  const checklist = useMemo(() => (waybill ? waybillChecklist(waybill) : []), [waybill]);
-  const completeCount = checklist.filter((item) => item.done).length;
   const locked = waybill?.status === "completed";
 
   function patch(next: Partial<SalesWaybill>) {
@@ -156,7 +153,7 @@ export function SalesWaybillEditor({ waybillId }: Props) {
   async function saveDraft() {
     if (!waybill || locked) return;
     if (!isMeaningfulSalesDraft(waybill)) {
-      setSaveNote("Start with the customer or a product line first.");
+      setSaveNote("Start with the customer or description first.");
       return;
     }
     setBusy("save");
@@ -168,24 +165,26 @@ export function SalesWaybillEditor({ waybillId }: Props) {
     };
     await saveSalesWaybill(next);
     setWaybill(next);
-    setSaveNote("Draft saved safely on this phone.");
+    setSaveNote("Draft saved on this phone.");
     window.dispatchEvent(new Event("safiroute:saved"));
     setBusy("");
   }
 
   async function complete() {
     if (!waybill || locked) return;
-    const missing = validateSalesWaybill(waybill);
+    const missing = paperValidation(waybill);
     if (missing.length) {
-      setError(`Before completing, add: ${missing.join(", ")}.`);
-      document.getElementById("sales-before-complete")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      setError(`Please complete: ${missing.join(", ")}.`);
+      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     if (!window.confirm(`Complete ${waybill.localNumber} for ${waybill.deliverTo}?\n\nAfter completion the waybill becomes read-only.`)) return;
+
     setBusy("complete");
     const now = new Date().toISOString();
     let saved: SalesWaybill = {
       ...waybill,
+      items: waybill.items.map((item) => (item.description.trim() && !item.qty ? { ...item, qty: "1" } : item)),
       status: "completed",
       syncStatus: "pending",
       completedAt: now,
@@ -235,14 +234,8 @@ export function SalesWaybillEditor({ waybillId }: Props) {
         });
         setGpsBusy(false);
       },
-      (gpsError) => {
-        const reason =
-          gpsError.code === 1
-            ? "Location permission is off. Turn it on, or record why GPS is unavailable."
-            : gpsError.code === 2
-              ? "GPS is unavailable right now. Try outdoors, or record a reason."
-              : "Location timed out. Try again, or record a reason.";
-        patch({ gpsUnavailableReason: reason });
+      () => {
+        patch({ gpsUnavailableReason: "Location was not captured." });
         setGpsBusy(false);
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
@@ -263,7 +256,7 @@ export function SalesWaybillEditor({ waybillId }: Props) {
   }
 
   return (
-    <div className="sales-editor">
+    <div className="sales-editor sales-editor-paper-simple">
       <datalist id="sales-customer-options">
         {references.customers.map((customer) => <option key={customer.id} value={customer.name} />)}
       </datalist>
@@ -271,24 +264,22 @@ export function SalesWaybillEditor({ waybillId }: Props) {
         {references.products.map((product) => <option key={product.id} value={product.name || product.sku || ""} />)}
       </datalist>
 
-      <div className="sales-editor-head">
+      <div className="sales-editor-head paper-editor-head">
         <button type="button" onClick={() => router.push("/field")} className="sales-back-button" aria-label="Back to waybills">←</button>
         <div>
-          <p className="sales-eyebrow">{locked ? "COMPLETED WAYBILL" : waybillId ? "EDIT DRAFT" : "NEW WAYBILL"}</p>
+          <p className="sales-eyebrow">{locked ? "COMPLETED WAYBILL" : waybillId ? "EDIT WAYBILL" : "NEW WAYBILL"}</p>
           <h1>{waybill.serverNumber || waybill.localNumber}</h1>
-          <p>{locked ? "Read-only record" : saveNote || "Changes save automatically on this phone."}</p>
+          <p>{locked ? "Read-only record" : saveNote || "Autosaves on this phone"}</p>
         </div>
       </div>
+
+      {error && <div className="sales-error sales-editor-error">{error}</div>}
 
       {locked && (
         <div className={`sales-complete-banner ${waybill.syncStatus === "synced" ? "is-synced" : "is-pending"}`}>
           <div>
             <strong>{waybill.syncStatus === "synced" ? "✓ Verified on HQ" : "✓ Completed on this phone"}</strong>
-            <span>
-              {waybill.syncStatus === "synced"
-                ? `Server waybill ${waybill.serverNumber || "accepted"}`
-                : waybill.syncError || "Waiting for a connection to send to HQ."}
-            </span>
+            <span>{waybill.syncStatus === "synced" ? `Server waybill ${waybill.serverNumber || "accepted"}` : waybill.syncError || "Waiting to send to HQ."}</span>
           </div>
           {waybill.syncStatus !== "synced" && navigator.onLine && (
             <button type="button" onClick={retrySync} disabled={busy === "sync"}>{busy === "sync" ? "Sending…" : "Send now"}</button>
@@ -296,125 +287,115 @@ export function SalesWaybillEditor({ waybillId }: Props) {
         </div>
       )}
 
-      <section className="sales-form-card sales-paper-card">
-        <div className="sales-paper-head">
-          <div className="sales-paper-brand">
+      <section className="paper-waybill-sheet">
+        <header className="paper-waybill-header">
+          <div className="paper-waybill-brand">
             <img src="/safiroute-icon.png" alt="" />
-            <span><b>Safisana</b><strong>WAYBILL</strong></span>
+            <div><strong>Safisana</strong><span>WAYBILL</span></div>
           </div>
-          <div className="sales-paper-number"><small>No.</small><b>{waybill.serverNumber || waybill.localNumber}</b></div>
-        </div>
-        <p className="sales-paper-help">Fill this like the paper pad. Only the essential fields are shown.</p>
-      </section>
+          <div className="paper-waybill-number"><small>No.</small><b>{waybill.serverNumber || waybill.localNumber}</b></div>
+          <div className="paper-company-copy">
+            <b>Safisana Ghana Limited</b>
+            <span>Accra, Ghana</span>
+            <span>invoice-gh@safisana.org</span>
+            <span>www.safisana.org</span>
+          </div>
+        </header>
 
-      <section className="sales-form-card">
-        <div className="sales-step-heading"><span>1</span><div><h2>Customer</h2><p>Who is receiving this delivery?</p></div></div>
-        <div className="sales-form-grid">
-          <label className="sales-field sales-field-wide">Deliver to *
-            <input list="sales-customer-options" disabled={locked} autoComplete="organization" value={waybill.deliverTo} onChange={(event) => applyCustomer(event.target.value)} placeholder="Customer or company name" />
+        <div className="paper-top-fields">
+          <label className="paper-line-field paper-field-wide">Deliver to:
+            <input list="sales-customer-options" disabled={locked} value={waybill.deliverTo} onChange={(event) => applyCustomer(event.target.value)} />
           </label>
-          <label className="sales-field">Date
+          <label className="paper-line-field">Date:
             <input disabled={locked} type="date" value={waybill.documentDate} onChange={(event) => patch({ documentDate: event.target.value })} />
           </label>
-          <label className="sales-field">Contact name
-            <input disabled={locked} autoComplete="name" value={waybill.contactName} onChange={(event) => patch({ contactName: event.target.value })} placeholder="Customer contact" />
+          <label className="paper-line-field paper-field-wide">Delivery Contact Name:
+            <input disabled={locked} value={waybill.contactName} onChange={(event) => patch({ contactName: event.target.value })} />
           </label>
-          <label className="sales-field">Phone
-            <input disabled={locked} inputMode="tel" autoComplete="tel" value={waybill.contactPhone} onChange={(event) => patch({ contactPhone: event.target.value })} placeholder="024…" />
+          <label className="paper-line-field">Contact Phone:
+            <input disabled={locked} inputMode="tel" value={waybill.contactPhone} onChange={(event) => patch({ contactPhone: event.target.value })} />
           </label>
-          <label className="sales-field sales-field-wide">Delivery address *
-            <textarea disabled={locked} rows={2} value={waybill.deliveryAddress} onChange={(event) => patch({ deliveryAddress: event.target.value })} placeholder="Where should the goods be delivered?" />
+          <label className="paper-line-field paper-address-line">Address:
+            <input disabled={locked} value={waybill.deliveryAddress} onChange={(event) => patch({ deliveryAddress: event.target.value })} />
           </label>
         </div>
-        {references.savedAt && <p className="sales-reference-note">Customer suggestions are saved for offline use.</p>}
-      </section>
 
-      <section className="sales-form-card">
-        <div className="sales-step-heading"><span>2</span><div><h2>Items</h2><p>What is being delivered?</p></div></div>
-        <div className="sales-mobile-lines">
+        <div className="paper-items-table">
+          <div className="paper-items-head"><span>Description</span><span>Remarks</span></div>
           {waybill.items.map((item, index) => (
-            <div className="sales-mobile-line" key={index}>
-              <div className="sales-mobile-line-number">{index + 1}</div>
-              <label className="sales-field sales-field-wide">Description
-                <input list="sales-product-options" disabled={locked} value={item.description} onChange={(event) => updateItem(index, { description: event.target.value })} placeholder="e.g. Fortifer Organic Fertilizer 50kg" />
-              </label>
-              <label className="sales-field">Qty
-                <input disabled={locked} type="number" min="0" step="0.01" inputMode="decimal" value={item.qty} onChange={(event) => updateItem(index, { qty: event.target.value })} placeholder="0" />
-              </label>
-              <label className="sales-field">Remarks
-                <input disabled={locked} value={item.remarks} onChange={(event) => updateItem(index, { remarks: event.target.value })} placeholder="Optional" />
-              </label>
+            <div className="paper-item-row" key={index}>
+              <input
+                aria-label={`Description ${index + 1}`}
+                list="sales-product-options"
+                disabled={locked}
+                value={item.description}
+                onChange={(event) => updateItem(index, { description: event.target.value })}
+              />
+              <input
+                aria-label={`Remarks ${index + 1}`}
+                disabled={locked}
+                value={item.remarks}
+                onChange={(event) => updateItem(index, { remarks: event.target.value })}
+              />
             </div>
           ))}
-        </div>
-        {!locked && (
-          <button type="button" className="sales-secondary-button sales-add-line" onClick={() => patch({ items: [...waybill.items, emptyLine()] })}>+ Add another line</button>
-        )}
-      </section>
-
-      <section className="sales-form-card">
-        <div className="sales-step-heading"><span>3</span><div><h2>Sales & dispatch</h2><p>Record who authorised and dispatched the goods.</p></div></div>
-        <div className="sales-form-grid">
-          <label className="sales-field">Authorised by *
-            <input disabled={locked} value={waybill.authorisedBy} onChange={(event) => patch({ authorisedBy: event.target.value })} />
-          </label>
-          <label className="sales-field">Dispatched by *
-            <input disabled={locked} value={waybill.dispatchedBy} onChange={(event) => patch({ dispatchedBy: event.target.value })} placeholder="Name" />
-          </label>
-          <label className="sales-field">Vehicle *
-            <input disabled={locked} value={waybill.vehicleNumber} onChange={(event) => patch({ vehicleNumber: event.target.value.toUpperCase() })} placeholder={settings?.vehicleNumber || "GT 0000-00"} />
-          </label>
-          <label className="sales-field">Remarks
-            <input disabled={locked} value={waybill.authorisedRemarks} onChange={(event) => patch({ authorisedRemarks: event.target.value })} placeholder="Optional" />
-          </label>
-        </div>
-        {locked ? (
-          <div className="sales-signature-readonly">
-            <div><span>Sales signature</span>{waybill.authorisedSignature ? <img src={waybill.authorisedSignature} alt="Sales signature" /> : <em>Not captured</em>}</div>
-            <div><span>Dispatch signature</span>{waybill.dispatchedSignature ? <img src={waybill.dispatchedSignature} alt="Dispatch signature" /> : <em>Not captured</em>}</div>
-          </div>
-        ) : (
-          <div className="sales-signature-grid">
-            <SignaturePad label="Sales / Authorised signature *" value={waybill.authorisedSignature} onChange={(value) => patch({ authorisedSignature: value })} />
-            <SignaturePad label="Dispatch signature *" value={waybill.dispatchedSignature} onChange={(value) => patch({ dispatchedSignature: value })} />
-          </div>
-        )}
-      </section>
-
-      <section className="sales-form-card">
-        <div className="sales-step-heading"><span>4</span><div><h2>Customer proof</h2><p>Customer confirms receipt; then capture location and a delivery photo.</p></div></div>
-        <div className="sales-form-grid">
-          <label className="sales-field">Received by *
-            <input disabled={locked} value={waybill.receivedBy} onChange={(event) => patch({ receivedBy: event.target.value })} placeholder="Customer representative" />
-          </label>
-          <label className="sales-field">Role / position
-            <input disabled={locked} value={waybill.receivedByRole} onChange={(event) => patch({ receivedByRole: event.target.value })} placeholder="Optional" />
-          </label>
-        </div>
-        {locked ? (
-          <div className="sales-signature-readonly single">
-            <div><span>Customer signature</span>{waybill.customerSignature ? <img src={waybill.customerSignature} alt="Customer signature" /> : <em>Not captured</em>}</div>
-          </div>
-        ) : (
-          <SignaturePad label="Customer / Received-by signature *" value={waybill.customerSignature} onChange={(value) => patch({ customerSignature: value })} />
-        )}
-
-        <div className="sales-proof-grid">
-          <div className="sales-proof-card">
-            <div className="sales-proof-icon" aria-hidden="true">⌖</div>
-            <div><strong>GPS location *</strong><p>{proofLabel(waybill)}</p></div>
-            {!locked && <button type="button" onClick={captureGps} disabled={gpsBusy}>{gpsBusy ? "Locating…" : "Capture"}</button>}
-          </div>
-          {!locked && waybill.latitude == null && (
-            <label className="sales-field sales-gps-reason">If GPS cannot be captured
-              <input value={waybill.gpsUnavailableReason} onChange={(event) => patch({ gpsUnavailableReason: event.target.value })} placeholder="Record why GPS is unavailable" />
-            </label>
+          {!locked && (
+            <button type="button" className="paper-add-row" onClick={() => patch({ items: [...waybill.items, emptyLine()] })}>+ Add line</button>
           )}
-          <div className="sales-proof-card sales-photo-proof">
-            <div className="sales-proof-icon" aria-hidden="true">▣</div>
-            <div><strong>Delivery photo *</strong><p>{waybill.photo ? "Photo saved on this phone" : "Take a clear delivery photo"}</p></div>
-            {!locked && (
-              <label className="sales-photo-button">{waybill.photo ? "Retake" : "Camera"}
+        </div>
+
+        <div className="paper-signoff-grid">
+          <div className="paper-signoff-column">
+            <label className="paper-line-field">Authorised by:
+              <input disabled={locked} value={waybill.authorisedBy} onChange={(event) => patch({ authorisedBy: event.target.value })} />
+            </label>
+            {locked ? (
+              <div className="paper-readonly-signature"><span>Signature:</span>{waybill.authorisedSignature && <img src={waybill.authorisedSignature} alt="Authorised signature" />}</div>
+            ) : (
+              <SignaturePad label="Signature:" value={waybill.authorisedSignature} onChange={(value) => patch({ authorisedSignature: value })} hint="Sign on the line" />
+            )}
+            <div className="paper-static-line"><span>Date:</span><b>{waybill.documentDate}</b></div>
+            <label className="paper-line-field paper-remarks-field">Remarks:
+              <textarea disabled={locked} rows={3} value={waybill.authorisedRemarks} onChange={(event) => patch({ authorisedRemarks: event.target.value })} />
+            </label>
+          </div>
+
+          <div className="paper-signoff-column">
+            <label className="paper-line-field">Dispatched by:
+              <input disabled={locked} value={waybill.dispatchedBy} onChange={(event) => patch({ dispatchedBy: event.target.value })} />
+            </label>
+            {locked ? (
+              <div className="paper-readonly-signature"><span>Signature:</span>{waybill.dispatchedSignature && <img src={waybill.dispatchedSignature} alt="Dispatch signature" />}</div>
+            ) : (
+              <SignaturePad label="Signature:" value={waybill.dispatchedSignature} onChange={(value) => patch({ dispatchedSignature: value })} hint="Sign on the line" />
+            )}
+            <div className="paper-static-line"><span>Date:</span><b>{waybill.documentDate}</b></div>
+
+            <p className="paper-certification">I certify that I have received the above items.</p>
+            <label className="paper-line-field">Received by:
+              <input disabled={locked} value={waybill.receivedBy} onChange={(event) => patch({ receivedBy: event.target.value })} />
+            </label>
+            {locked ? (
+              <div className="paper-readonly-signature"><span>Signature:</span>{waybill.customerSignature && <img src={waybill.customerSignature} alt="Received signature" />}</div>
+            ) : (
+              <SignaturePad label="Signature:" value={waybill.customerSignature} onChange={(value) => patch({ customerSignature: value })} hint="Sign on the line" />
+            )}
+            <div className="paper-static-line"><span>Date:</span><b>{waybill.documentDate}</b></div>
+          </div>
+        </div>
+      </section>
+
+      {!locked && (
+        <details className="paper-digital-proof">
+          <summary>Digital proof <span>optional</span></summary>
+          <div className="paper-digital-proof-body">
+            <div className="paper-proof-row">
+              <div><b>Location</b><small>{waybill.latitude != null && waybill.longitude != null ? "Captured" : "Not captured"}</small></div>
+              <button type="button" onClick={captureGps} disabled={gpsBusy}>{gpsBusy ? "Locating…" : "Capture GPS"}</button>
+            </div>
+            <div className="paper-proof-row">
+              <div><b>Delivery photo</b><small>{waybill.photo ? "Photo saved" : "No photo"}</small></div>
+              <label className="paper-photo-button">{waybill.photo ? "Retake" : "Add photo"}
                 <input
                   type="file"
                   accept="image/*"
@@ -423,10 +404,6 @@ export function SalesWaybillEditor({ waybillId }: Props) {
                     const file = event.target.files?.[0];
                     event.target.value = "";
                     if (!file) return;
-                    if (file.size > 20 * 1024 * 1024) {
-                      setError("That photo is too large. Take a smaller camera photo.");
-                      return;
-                    }
                     try {
                       setBusy("photo");
                       patch({ photo: await fileToCompressedDataUrl(file) });
@@ -438,33 +415,16 @@ export function SalesWaybillEditor({ waybillId }: Props) {
                   }}
                 />
               </label>
-            )}
+            </div>
           </div>
-          {waybill.photo && <img src={waybill.photo} alt="Delivery proof" className="sales-photo-preview" />}
-          <label className="sales-field sales-field-wide">Delivery notes
-            <textarea disabled={locked} rows={3} value={waybill.notes} onChange={(event) => patch({ notes: event.target.value })} placeholder="Optional delivery notes or observations" />
-          </label>
-        </div>
-      </section>
-
-      {!locked && (
-        <section id="sales-before-complete" className="sales-checklist-card">
-          <div className="sales-section-heading">
-            <div><p className="sales-eyebrow">BEFORE COMPLETE</p><h2>{completeCount}/{checklist.length} ready</h2></div>
-            <span>{Math.round((completeCount / Math.max(1, checklist.length)) * 100)}%</span>
-          </div>
-          <div className="sales-progress"><i style={{ width: `${(completeCount / Math.max(1, checklist.length)) * 100}%` }} /></div>
-          <ul>{checklist.map((item) => <li key={item.id} className={item.done ? "done" : ""}><b>{item.done ? "✓" : "○"}</b><span>{item.label}</span></li>)}</ul>
-        </section>
+        </details>
       )}
 
-      {error && <div className="sales-error sales-editor-error">{error}</div>}
-
       {!locked && (
-        <div className="sales-editor-actions">
-          {waybillId && <button type="button" className="sales-danger-button" onClick={removeDraft}>Delete</button>}
+        <div className="paper-waybill-actions">
+          {waybillId && <button type="button" className="paper-delete-link" onClick={removeDraft}>Delete draft</button>}
           <button type="button" className="sales-secondary-button" onClick={saveDraft} disabled={Boolean(busy)}>{busy === "save" ? "Saving…" : "Save draft"}</button>
-          <button type="button" className="sales-primary-button" onClick={complete} disabled={Boolean(busy)}>{busy === "complete" ? "Completing…" : busy === "photo" ? "Saving photo…" : "Complete waybill"}</button>
+          <button type="button" className="sales-primary-button" onClick={complete} disabled={Boolean(busy)}>{busy === "complete" ? "Completing…" : "Complete waybill"}</button>
         </div>
       )}
 

@@ -4,6 +4,7 @@ import "./globals.css";
 import "./sales-mobile.css";
 import "./sales-mobile-polish.css";
 import "./paper-waybill.css";
+import "./paper-waybill-simple.css";
 
 export const metadata: Metadata = {
   title: "SafiRoute — Every delivery. Verified.",
