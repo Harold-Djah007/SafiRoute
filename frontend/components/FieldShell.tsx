@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { bootstrapSession, logoutRequest, readUser, type User } from "@/lib/api";
+import { logoutRequest, readUser, type User } from "@/lib/api";
 import { flushQueue, listQueue } from "@/lib/offline";
 
 function FieldShellInner({ children }: { children: React.ReactNode }) {
@@ -11,7 +11,9 @@ function FieldShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const search = useSearchParams();
   const tab = search.get("tab") || "";
-  const [user, setUser] = useState<User | null>(() => (typeof window === "undefined" ? null : readUser()));
+  // Keep the server and browser's first render identical. Session storage is
+  // browser-only, so restore it after hydration in the effect below.
+  const [user, setUser] = useState<User | null>(null);
   const [online, setOnline] = useState(true);
   const [queued, setQueued] = useState(0);
   const [syncNote, setSyncNote] = useState("");
