@@ -33,7 +33,14 @@ class WaybillAdmin(admin.ModelAdmin):
     list_filter = ("status", "branch", "sync_status")
     search_fields = ("waybill_number", "customer__name", "sales_order_ref")
     inlines = [WaybillItemInline, AuditInline]
-    readonly_fields = ("waybill_number", "verification_token", "created_at", "updated_at")
+    readonly_fields = (
+        "waybill_number",
+        "verification_token",
+        "document_fingerprint",
+        "pdf_sha256",
+        "created_at",
+        "updated_at",
+    )
 
 
 admin.site.register(Customer)

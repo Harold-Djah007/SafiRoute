@@ -2,7 +2,8 @@
 
 from decimal import Decimal
 
-from django.core.management.base import BaseCommand
+from django.conf import settings
+from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
 from waybills.models import (
@@ -23,6 +24,8 @@ class Command(BaseCommand):
     help = "Create demo users, products, customers, and sample waybills."
 
     def handle(self, *args, **options):
+        if not settings.DEBUG:
+            raise CommandError("seed_demo is disabled when DEBUG is False. Demo passwords must not exist in production.")
         users = {
             "admin": self._user("admin", "SafiRoute", "Admin", User.Role.ADMIN, is_staff=True, is_superuser=True),
             "sales": self._user("sales", "Ama", "Mensah", User.Role.SALES, employee_id="SF-SAL-014", phone="+233244111014"),

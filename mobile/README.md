@@ -1,8 +1,10 @@
-# SafiRoute mobile (Flutter)
+# SafiRoute mobile (Flutter) — experimental
 
-Android-first driver app. The same delivery workflow is also available in the web app at `/field` so you can test without installing Flutter.
+This directory is an **unfinished Flutter scaffold**. It is **not** the supported SafiRoute field app and must not be used to judge product readiness.
 
-## Run
+The supported field client is the installable PWA at `/field` in `frontend/` (Add to Home Screen). Use that for driver trials.
+
+## Experimental run
 
 ```bash
 cd mobile
@@ -12,9 +14,9 @@ cp ../assets/safiroute-icon.png assets/
 mkdir -p assets
 flutter pub get
 flutter run \
-  --dart-define=SAFIROUTE_API=http://127.0.0.1:8000/api
+  --dart-define=SAFIROUTE_API=http://127.0.0.1:8877/api
 ```
 
 On a physical phone, replace `127.0.0.1` with your computer's LAN IP.
 
-Demo driver login: `driver` / `safiroute`
+Demo driver login (DEBUG/local only): `driver` / `safiroute`

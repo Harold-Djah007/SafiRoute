@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { clearSession, readUser, type User } from "@/lib/api";
+import { bootstrapSession, logoutRequest, readUser, type User } from "@/lib/api";
 
 const NAV = [
   { href: "/dashboard", label: "Operations", roles: ["admin", "sales", "supervisor", "warehouse", "finance"] },

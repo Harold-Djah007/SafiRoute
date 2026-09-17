@@ -171,6 +171,8 @@ class WaybillSerializer(serializers.ModelSerializer):
             "cancellation_reason",
             "pdf_file",
             "pdf_version",
+            "document_fingerprint",
+            "pdf_sha256",
             "items",
             "photos",
             "audit_logs",
@@ -189,6 +191,8 @@ class WaybillSerializer(serializers.ModelSerializer):
             "delivery_at",
             "pdf_file",
             "pdf_version",
+            "document_fingerprint",
+            "pdf_sha256",
             "status",
         ]
 

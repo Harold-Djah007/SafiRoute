@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { clearSession, readUser, type User } from "@/lib/api";
+import { bootstrapSession, logoutRequest, readUser, type User } from "@/lib/api";
 import { flushQueue, listQueue } from "@/lib/offline";
 
 function FieldShellInner({ children }: { children: React.ReactNode }) {

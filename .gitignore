@@ -94,3 +94,8 @@ tmp/
 logs/
 *.sqlite
 *.db
+backend/backups/
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+frontend/playwright/.cache/
