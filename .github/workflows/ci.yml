@@ -94,6 +94,10 @@ jobs:
         run: python manage.py migrate --noinput
       - name: Run test suite on PostgreSQL
         run: python manage.py test
+        env:
+          # Django's test/API clients default to HTTP. The preceding deploy check
+          # still verifies that production HTTPS redirection is enabled.
+          SECURE_SSL_REDIRECT: "False"
 
   field-pwa:
     name: Frontend security + field PWA (Pixel + desktop)
