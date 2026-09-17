@@ -2,7 +2,8 @@
 
 Local demo (DEBUG=True): SQLite is allowed.
 Production (DJANGO_ENV=production or DEBUG=False): PostgreSQL is required,
-SECRET_KEY must be set, ALLOWED_HOSTS must be explicit.
+SECRET_KEY must be set, ALLOWED_HOSTS must be explicit, and HTTPS protections
+are enabled by default.
 """
 
 from pathlib import Path
@@ -174,8 +175,12 @@ if not DEBUG:
     SECURE_CONTENT_TYPE_NOSNIFF = True
     SECURE_REFERRER_POLICY = "same-origin"
     X_FRAME_OPTIONS = "DENY"
-    SECURE_HSTS_SECONDS = int(os.getenv("SECURE_HSTS_SECONDS", "0"))
-    SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", default=False)
+    SECURE_HSTS_SECONDS = int(os.getenv("SECURE_HSTS_SECONDS", "31536000"))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", default=True)
+    SECURE_HSTS_PRELOAD = env_bool("SECURE_HSTS_PRELOAD", default=False)
+    SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", default=True)
+    if env_bool("TRUST_X_FORWARDED_PROTO", default=False):
+        SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://localhost:3000")
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8877")
