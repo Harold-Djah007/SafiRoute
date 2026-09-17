@@ -1,6 +1,15 @@
 version: "3.8"
 
 services:
+  pwa:
+    image: python:3.12-alpine
+    working_dir: /app
+    ports:
+      - "4173:4173"
+    volumes:
+      - .:/app:ro
+    command: python -m http.server 4173 --bind 0.0.0.0
+
   backend:
     build:
       context: ./backend
@@ -15,6 +24,7 @@ services:
       - DEBUG=True
       - DJANGO_SECRET_KEY=dev-only-change-in-prod
       - PUBLIC_BASE_URL=http://localhost:3000
+    profiles: ["full"]
     command: >
       sh -c "python manage.py migrate &&
              python manage.py seed_demo &&

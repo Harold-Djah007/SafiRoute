@@ -17,6 +17,7 @@ build/
 .mypy_cache/
 .pytest_cache/
 .coverage
+coverage/
 htmlcov/
 .tox/
 .nox/

@@ -188,3 +188,46 @@ class WaybillWorkflowTests(TestCase):
             format="json",
         )
         self.assertEqual(missing.status_code, 400)
+
+    def test_pwa_ingest_accepts_phone_pad_without_login(self):
+        tiny_png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+        payload = {
+            "client_uuid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            "phone_number": "SR-20260917-1234",
+            "operator_name": "Ama Boateng",
+            "deliver_to": "Tema Market",
+            "delivery_contact_name": "Kojo",
+            "contact_phone": "0244000000",
+            "delivery_address_text": "Community 1, Tema",
+            "document_date": "2026-09-17",
+            "authorised_by_name": "Ama Boateng",
+            "dispatched_by_name": "Yaw",
+            "vehicle_registration": "GT 100-26",
+            "received_by": "Ama Customer",
+            "items": [{"product_name": "Fortifer Organic Fertilizer 50kg", "ordered_qty": "20", "notes": "Dry bags"}],
+            "lat": "5.67",
+            "lng": "0.03",
+            "gps_accuracy": "8",
+            "authorised_signature": tiny_png,
+            "dispatched_signature": tiny_png,
+            "customer_signature": tiny_png,
+        }
+        created = self.client.post("/api/pwa/ingest/", payload, format="json")
+        self.assertEqual(created.status_code, 201, created.data)
+        self.assertTrue(created.data["accepted"])
+        self.assertFalse(created.data["duplicate"])
+        self.assertEqual(Waybill.objects.get(client_uuid=payload["client_uuid"]).status, Waybill.Status.DELIVERED)
+        self.assertEqual(Waybill.objects.get(client_uuid=payload["client_uuid"]).sales_order_ref, "SR-20260917-1234")
+
+        replay = self.client.post("/api/pwa/ingest/", payload, format="json")
+        self.assertEqual(replay.status_code, 200, replay.data)
+        self.assertTrue(replay.data["duplicate"])
+        self.assertEqual(Waybill.objects.filter(client_uuid=payload["client_uuid"]).count(), 1)
+
+    def test_pwa_ingest_rejects_empty_pad(self):
+        missing = self.client.post(
+            "/api/pwa/ingest/",
+            {"client_uuid": "bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee"},
+            format="json",
+        )
+        self.assertEqual(missing.status_code, 400)

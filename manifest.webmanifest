@@ -1,0 +1,24 @@
+{
+  "name": "SafiRoute Digital Waybill",
+  "short_name": "SafiRoute",
+  "description": "Offline-first digital waybills and proof of delivery for Safisana Ghana.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#04150c",
+  "theme_color": "#04150c",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "./assets/safiroute-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./assets/safiroute-logo.png",
+      "sizes": "2172x724",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

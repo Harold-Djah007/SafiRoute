@@ -4,6 +4,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework.authtoken.views import obtain_auth_token
 
+from waybills.pwa import pwa_ingest
 from waybills.views import health, login, me, verify_waybill
 
 urlpatterns = [
@@ -15,6 +16,8 @@ urlpatterns = [
     path("api/auth/login", login),
     path("api/me/", me),
     path("api/verify/<str:token>/", verify_waybill),
+    path("api/pwa/ingest/", pwa_ingest),
+    path("api/pwa/ingest", pwa_ingest),
     path("api/", include("waybills.urls")),
 ]
 
