@@ -103,6 +103,7 @@ export type Waybill = {
   gps_unavailable_reason: string;
   customer_rep_name: string;
   customer_rep_role: string;
+  authorised_signature: string | null;
   customer_signature: string | null;
   driver_signature: string | null;
   delivery_notes: string;
@@ -127,6 +128,7 @@ export type Waybill = {
 };
 
 const USER_KEY = "safiroute_user";
+const OFFLINE_USER_KEY = "safiroute_offline_sales_profile";
 
 function readCookie(name: string) {
   if (typeof document === "undefined") return "";
@@ -191,7 +193,7 @@ export async function api<T = unknown>(path: string, options: RequestInit = {}):
   if (!res.ok) {
     const detail =
       (typeof data.detail === "string" && data.detail) ||
-      `Could not reach the SafiRoute API (${res.status}). Start Django with: python manage.py runserver 127.0.0.1:8877`;
+      `Could not reach the SafiRoute API (${res.status}). Start Django and try again.`;
     throw new Error(detail);
   }
   return data as T;
@@ -204,9 +206,28 @@ export function loginRequest(username: string, password: string) {
   });
 }
 
+function readOfflineUser(): User | null {
+  if (typeof window === "undefined") return null;
+  const raw = localStorage.getItem(OFFLINE_USER_KEY);
+  if (!raw) return null;
+  try {
+    const user = JSON.parse(raw) as User;
+    return user?.role === "sales" ? user : null;
+  } catch {
+    localStorage.removeItem(OFFLINE_USER_KEY);
+    return null;
+  }
+}
+
 export function saveSession(user: User) {
   if (typeof window === "undefined") return;
   sessionStorage.setItem(USER_KEY, JSON.stringify(user));
+  // This is profile data only, never a credential or API token. Keeping the
+  // Sales identity lets an installed PWA reopen offline after the browser has
+  // discarded sessionStorage. Server writes still require the HttpOnly Django
+  // session once connectivity returns.
+  if (user.role === "sales") localStorage.setItem(OFFLINE_USER_KEY, JSON.stringify(user));
+  else localStorage.removeItem(OFFLINE_USER_KEY);
   localStorage.removeItem("safiroute_token");
   localStorage.removeItem("safiroute_user");
 }
@@ -223,6 +244,7 @@ export async function logoutRequest() {
 export function clearSession() {
   if (typeof window === "undefined") return;
   sessionStorage.removeItem(USER_KEY);
+  localStorage.removeItem(OFFLINE_USER_KEY);
   localStorage.removeItem("safiroute_token");
   localStorage.removeItem("safiroute_user");
 }
@@ -230,7 +252,15 @@ export function clearSession() {
 export function readUser(): User | null {
   if (typeof window === "undefined") return null;
   const raw = sessionStorage.getItem(USER_KEY);
-  return raw ? (JSON.parse(raw) as User) : null;
+  if (raw) {
+    try {
+      return JSON.parse(raw) as User;
+    } catch {
+      sessionStorage.removeItem(USER_KEY);
+    }
+  }
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return readOfflineUser();
+  return null;
 }
 
 export async function bootstrapSession(): Promise<User | null> {
@@ -239,11 +269,12 @@ export async function bootstrapSession(): Promise<User | null> {
     saveSession(user);
     return user;
   } catch {
+    // Keep the local-first shell usable when HQ is temporarily unreachable.
+    // `readUser` uses sessionStorage while online and the non-secret persisted
+    // Sales profile only when the browser reports that it is offline.
     const cached = readUser();
-    if (cached && typeof navigator !== "undefined" && navigator.onLine === false) {
-      return cached;
-    }
-    clearSession();
+    if (cached) return cached;
+    sessionStorage.removeItem(USER_KEY);
     return null;
   }
 }

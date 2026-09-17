@@ -3,7 +3,7 @@ from django.test import TestCase
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
-from waybills.models import Customer, Product, User, Vehicle, Waybill, WaybillItem
+from waybills.models import AuditLog, Customer, Product, User, Vehicle, Waybill, WaybillItem
 
 
 class WaybillWorkflowTests(TestCase):
@@ -91,7 +91,6 @@ class WaybillWorkflowTests(TestCase):
         self.assertTrue(verify.data["valid"])
         self.assertEqual(verify.data["waybill_number"], complete.data["waybill_number"])
 
-        # Idempotent replay must not duplicate
         self._auth(self.driver)
         replay = self.client.post(
             f"/api/waybills/{wb_id}/complete_delivery/",
@@ -194,3 +193,69 @@ class WaybillWorkflowTests(TestCase):
             format="json",
         )
         self.assertEqual(missing.status_code, 400)
+
+    def test_sales_mobile_waybill_sync_is_complete_and_idempotent(self):
+        tiny_png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+        client_uuid = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        payload = {
+            "client_uuid": client_uuid,
+            "phone_number": "SR-20260917-1234",
+            "deliver_to": "Mobile Test Customer",
+            "delivery_contact_name": "Kojo Mensah",
+            "contact_phone": "0244000000",
+            "delivery_address_text": "Community 22, Ashaiman",
+            "document_date": "2026-09-17",
+            "authorised_by_name": "Ama Sales",
+            "authorised_remarks": "Checked",
+            "dispatched_by_name": "Kofi Dispatch",
+            "vehicle_registration": "GT 1234-26",
+            "received_by": "Adwoa Customer",
+            "received_by_role": "Storekeeper",
+            "items": [
+                {
+                    "product_name": "Fortifer Organic Fertilizer 50kg",
+                    "ordered_qty": "20",
+                    "notes": "Dry bags",
+                }
+            ],
+            "authorised_signature": tiny_png,
+            "dispatched_signature": tiny_png,
+            "customer_signature": tiny_png,
+            "lat": "5.683000",
+            "lng": "-0.033000",
+            "gps_accuracy": "8",
+            "photo": tiny_png,
+            "delivery_notes": "Delivered in good condition",
+            "device_timestamp": "2026-09-17T10:30:00Z",
+        }
+        self._auth(self.sales)
+        created = self.client.post("/api/mobile-waybills/ingest/", payload, format="json")
+        self.assertEqual(created.status_code, 201, created.data)
+        self.assertTrue(created.data["accepted"])
+        self.assertFalse(created.data["duplicate"])
+
+        wb = Waybill.objects.get(client_uuid=client_uuid)
+        self.assertEqual(wb.status, Waybill.Status.DELIVERED)
+        self.assertEqual(wb.created_by, self.sales)
+        self.assertEqual(wb.authorised_by_name, "Ama Sales")
+        self.assertEqual(wb.dispatched_by_name, "Kofi Dispatch")
+        self.assertTrue(wb.authorised_signature)
+        self.assertTrue(wb.driver_signature)
+        self.assertTrue(wb.customer_signature)
+        self.assertTrue(wb.pdf_file)
+        self.assertEqual(wb.photos.count(), 1)
+        self.assertTrue(AuditLog.objects.filter(waybill=wb, action="mobile_sales_completed").exists())
+
+        replay = self.client.post("/api/mobile-waybills/ingest/", payload, format="json")
+        self.assertEqual(replay.status_code, 200, replay.data)
+        self.assertTrue(replay.data["duplicate"])
+        self.assertEqual(Waybill.objects.filter(client_uuid=client_uuid).count(), 1)
+
+    def test_driver_cannot_use_sales_mobile_completion_endpoint(self):
+        self._auth(self.driver)
+        denied = self.client.post(
+            "/api/mobile-waybills/ingest/",
+            {"client_uuid": "bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee"},
+            format="json",
+        )
+        self.assertEqual(denied.status_code, 403)

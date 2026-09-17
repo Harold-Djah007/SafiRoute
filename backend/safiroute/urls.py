@@ -4,6 +4,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 from waybills.auth_views import session_login, token_login
+from waybills.mobile_views import mobile_waybill_ingest
 from waybills.views import csrf_token, health, logout_view, me, verify_waybill
 
 urlpatterns = [
@@ -18,6 +19,8 @@ urlpatterns = [
     path("api/auth/logout/", logout_view),
     path("api/auth/logout", logout_view),
     path("api/me/", me),
+    path("api/mobile-waybills/ingest/", mobile_waybill_ingest),
+    path("api/mobile-waybills/ingest", mobile_waybill_ingest),
     path("api/verify/<str:token>/", verify_waybill),
     path("api/", include("waybills.urls")),
 ]

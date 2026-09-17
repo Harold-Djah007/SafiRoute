@@ -1,10 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import "./globals.css";
+import "./sales-mobile.css";
+import "./sales-mobile-polish.css";
 
 export const metadata: Metadata = {
   title: "SafiRoute — Every delivery. Verified.",
-  description: "Safisana Ghana digital waybill and proof of delivery. Field-ready, offline-capable, QR-verified.",
+  description: "Safisana Ghana digital sales waybills: offline-capable, signed, geo-stamped, PDF and QR verified.",
   applicationName: "SafiRoute",
   icons: { icon: "/safiroute-icon.png", apple: "/safiroute-icon.png" },
   manifest: "/manifest.json",

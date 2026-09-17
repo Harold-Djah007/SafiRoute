@@ -1,5 +1,12 @@
-const CACHE = "safiroute-field-v1";
-const SHELL = ["/field", "/manifest.json", "/safiroute-icon.png", "/safiroute-logo.png"];
+const CACHE = "safiroute-sales-v2";
+const SHELL = [
+  "/field",
+  "/field/new",
+  "/field/settings",
+  "/manifest.json",
+  "/safiroute-icon.png",
+  "/safiroute-logo.png",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

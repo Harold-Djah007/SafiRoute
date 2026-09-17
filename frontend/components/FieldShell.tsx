@@ -1,121 +1,203 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
-import { logoutRequest, readUser, type User } from "@/lib/api";
-import { flushQueue, listQueue } from "@/lib/offline";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { bootstrapSession, logoutRequest, type User } from "@/lib/api";
+import {
+  flushSalesWaybills,
+  getSalesMobileSettings,
+  hashPin,
+  listSalesWaybills,
+  type SalesMobileSettings,
+} from "@/lib/sales-mobile";
 
-function FieldShellInner({ children }: { children: React.ReactNode }) {
+const LOCK_KEY = "safiroute_sales_pad_locked";
+
+export function FieldShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const search = useSearchParams();
-  const tab = search.get("tab") || "";
-  // Keep the server and browser's first render identical. Session storage is
-  // browser-only, so restore it after hydration in the effect below.
   const [user, setUser] = useState<User | null>(null);
+  const [settings, setSettings] = useState<SalesMobileSettings | null>(null);
   const [online, setOnline] = useState(true);
-  const [queued, setQueued] = useState(0);
+  const [pending, setPending] = useState(0);
   const [syncNote, setSyncNote] = useState("");
+  const [locked, setLocked] = useState(false);
+  const [pin, setPin] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [opening, setOpening] = useState(true);
 
-  async function refreshQueue() {
+  async function refreshStatus() {
     try {
-      setQueued((await listQueue()).length);
+      const [profile, waybills] = await Promise.all([getSalesMobileSettings(), listSalesWaybills()]);
+      setSettings(profile);
+      setPending(waybills.filter((item) => item.status === "completed" && item.syncStatus !== "synced").length);
+      const shouldLock = Boolean(profile.pinHash && localStorage.getItem(LOCK_KEY) === "1");
+      setLocked(shouldLock);
+      if (!profile.pinHash && localStorage.getItem(LOCK_KEY) === "1") localStorage.removeItem(LOCK_KEY);
     } catch {
-      setQueued(0);
+      setPending(0);
     }
   }
 
   useEffect(() => {
-    const current = readUser();
-    if (!current) {
-      router.replace("/");
-      return;
-    }
-    setUser(current);
+    let active = true;
     setOnline(navigator.onLine);
-    refreshQueue();
-    const on = () => setOnline(true);
-    const off = () => setOnline(false);
-    window.addEventListener("online", on);
-    window.addEventListener("offline", off);
-    return () => {
-      window.removeEventListener("online", on);
-      window.removeEventListener("offline", off);
+    void bootstrapSession().then((current) => {
+      if (!active) return;
+      if (!current) {
+        setOpening(false);
+        router.replace("/");
+        return;
+      }
+      if (current.role !== "sales") {
+        setOpening(false);
+        router.replace("/dashboard");
+        return;
+      }
+      setUser(current);
+      void refreshStatus().finally(() => setOpening(false));
+    });
+
+    const onOnline = () => {
+      setOnline(true);
+      void flushSalesWaybills().then((result) => {
+        if (result.sent) setSyncNote(`${result.sent} waybill${result.sent === 1 ? "" : "s"} sent to HQ`);
+        void refreshStatus();
+      });
     };
+    const onOffline = () => setOnline(false);
+    const onSaved = () => void refreshStatus();
+    const onLock = () => {
+      localStorage.setItem(LOCK_KEY, "1");
+      setLocked(true);
+    };
+
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    window.addEventListener("safiroute:saved", onSaved);
+    window.addEventListener("safiroute:lock", onLock);
+    return () => {
+      active = false;
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+      window.removeEventListener("safiroute:saved", onSaved);
+      window.removeEventListener("safiroute:lock", onLock);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
   useEffect(() => {
-    if (!online) return;
-    flushQueue()
-      .then((result) => {
-        if (result.sent) setSyncNote(`${result.sent} queued delivery sent`);
-        refreshQueue();
-      })
-      .catch(() => undefined);
-  }, [online, pathname]);
+    if (!user || !online || locked) return;
+    void flushSalesWaybills().then((result) => {
+      if (result.sent) setSyncNote(`${result.sent} waybill${result.sent === 1 ? "" : "s"} sent to HQ`);
+      void refreshStatus();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [online, pathname, locked, user]);
 
-  if (!user) {
-    return <div className="grid min-h-dvh place-items-center text-forest-800">Opening field app…</div>;
+  const title = useMemo(() => {
+    if (pathname === "/field/settings") return "Settings";
+    if (pathname === "/field/new") return "New waybill";
+    if (pathname.startsWith("/field/waybill/")) return "Waybill";
+    return "Sales waybills";
+  }, [pathname]);
+
+  async function unlock(event: React.FormEvent) {
+    event.preventDefault();
+    setPinError("");
+    if (!settings?.pinHash) {
+      localStorage.removeItem(LOCK_KEY);
+      setLocked(false);
+      return;
+    }
+    if ((await hashPin(pin.trim())) !== settings.pinHash) {
+      setPinError("That PIN does not match.");
+      return;
+    }
+    localStorage.removeItem(LOCK_KEY);
+    setPin("");
+    setLocked(false);
+  }
+
+  if (opening || !user) {
+    return <div className="grid min-h-dvh place-items-center bg-[#f4efe2] text-forest-800">Opening SafiRoute…</div>;
   }
 
   return (
-    <div className="field-shell min-h-dvh bg-cream text-ink">
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-forest-950 text-cream">
-        <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <Link href="/field" className="flex items-center gap-2">
-            <img src="/safiroute-icon.png" alt="" className="h-9 w-9 rounded-lg object-cover" />
-            <div>
-              <p className="font-display text-lg leading-none">SafiRoute</p>
-              <p className="text-[10px] uppercase tracking-[0.18em] text-gold-400">Field</p>
-            </div>
-          </Link>
-          <div className="text-right text-xs">
-            <p className="font-semibold">{user.full_name}</p>
-            <p className={online ? "text-emerald-300" : "text-amber-300"}>
-              {online ? "Online" : "Offline"}
-              {queued ? ` · ${queued} queued` : ""}
-            </p>
-          </div>
+    <div className="sales-mobile-shell min-h-dvh text-ink">
+      <header className="sales-mobile-topbar">
+        <Link href="/field" className="sales-mobile-brand" aria-label="SafiRoute sales waybills">
+          <img src="/safiroute-icon.png" alt="" />
+          <span>
+            <strong>SafiRoute</strong>
+            <em>{title}</em>
+          </span>
+        </Link>
+        <div className="sales-mobile-status">
+          <strong>{user.first_name || user.username}</strong>
+          <span className={online ? "is-online" : "is-offline"}>
+            <i /> {online ? "Online" : "Offline"}{pending ? ` · ${pending} waiting` : ""}
+          </span>
         </div>
-        {!online && (
-          <p className="bg-amber-400 px-4 py-2 text-center text-sm font-semibold text-forest-950">
-            No signal — deliveries save on this phone and send when 4G returns.
-          </p>
-        )}
-        {online && syncNote && (
-          <p className="bg-emerald-700 px-4 py-1.5 text-center text-xs text-white">{syncNote}</p>
-        )}
       </header>
-      <main className="mx-auto w-full max-w-lg px-4 pb-28 pt-4">{children}</main>
-      <nav className="field-nav">
-        <Link href="/field" className={pathname === "/field" && tab !== "sync" ? "text-gold-400" : "text-cream/80"}>
-          Runs
+
+      {!online && (
+        <div className="sales-offline-banner">
+          No signal — keep working. SafiRoute is saving this waybill on the phone.
+        </div>
+      )}
+      {online && syncNote && <div className="sales-sync-banner">✓ {syncNote}</div>}
+
+      <main className="sales-mobile-main">{children}</main>
+
+      <nav className="sales-mobile-nav" aria-label="Sales mobile navigation">
+        <Link href="/field" className={pathname === "/field" ? "active" : ""}>
+          <span aria-hidden="true">▤</span>
+          <small>Waybills</small>
         </Link>
-        <Link href="/field?tab=sync" className={tab === "sync" ? "text-gold-400" : "text-cream/80"}>
-          Queue{queued ? ` (${queued})` : ""}
+        <Link href="/field/new" className={`sales-nav-new ${pathname === "/field/new" ? "active" : ""}`}>
+          <span aria-hidden="true">＋</span>
+          <small>New</small>
         </Link>
-        <Link href="/waybills" className="text-cream/80">
-          Office
+        <Link href="/field/settings" className={pathname === "/field/settings" ? "active" : ""}>
+          <span aria-hidden="true">⚙</span>
+          <small>Settings</small>
         </Link>
         <button
           type="button"
-          className="text-cream/80"
           onClick={() => {
             void logoutRequest().then(() => router.replace("/"));
           }}
         >
-          Sign out
+          <span aria-hidden="true">↪</span>
+          <small>Sign out</small>
         </button>
       </nav>
-    </div>
-  );
-}
 
-export function FieldShell({ children }: { children: React.ReactNode }) {
-  return (
-    <Suspense fallback={<div className="grid min-h-dvh place-items-center text-forest-800">Opening field app…</div>}>
-      <FieldShellInner>{children}</FieldShellInner>
-    </Suspense>
+      {locked && (
+        <div className="sales-lock-screen" role="dialog" aria-modal="true" aria-labelledby="sales-lock-title">
+          <form onSubmit={unlock} className="sales-lock-card">
+            <img src="/safiroute-icon.png" alt="" />
+            <p className="sales-eyebrow">THIS PHONE</p>
+            <h1 id="sales-lock-title">SafiRoute is locked</h1>
+            <p>{user.full_name}</p>
+            <label>
+              4-digit PIN
+              <input
+                autoFocus
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                value={pin}
+                onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 4))}
+              />
+            </label>
+            {pinError && <div className="sales-error">{pinError}</div>}
+            <button type="submit" className="sales-primary-button">Unlock pad</button>
+          </form>
+        </div>
+      )}
+    </div>
   );
 }

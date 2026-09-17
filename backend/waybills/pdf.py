@@ -52,6 +52,20 @@ def _qr_image(url):
     return Image(buf, width=32 * mm, height=32 * mm)
 
 
+def _stored_image(field, width, height):
+    if not field:
+        return None
+    try:
+        field.open("rb")
+        raw = field.read()
+        field.close()
+        if not raw:
+            return None
+        return Image(BytesIO(raw), width=width, height=height, kind="proportional")
+    except Exception:
+        return None
+
+
 def generate_waybill_pdf(waybill):
     buffer = BytesIO()
     doc = SimpleDocTemplate(
@@ -89,22 +103,18 @@ def generate_waybill_pdf(waybill):
     waybill.document_fingerprint = fingerprint
     story = []
 
-    header_cells = []
     logo = _logo_path()
-    if logo:
-        header_cells.append(Image(logo, width=55 * mm, height=18 * mm, kind="proportional"))
-    else:
-        header_cells.append(Paragraph("SafiRoute", title))
-    header_cells.append(
-        [
-            Paragraph("DIGITAL WAYBILL", title),
-            Paragraph("Safisana Ghana · Every delivery. Verified.", subtitle),
-            Paragraph(f"<b>{waybill.waybill_number}</b> · {waybill.get_status_display()}", body),
-        ]
-    )
-    header_cells.append(_qr_image(verify_url))
+    logo_cell = Image(logo, width=55 * mm, height=18 * mm, kind="proportional") if logo else Paragraph("SafiRoute", title)
     header = Table(
-        [[header_cells[0], header_cells[1], header_cells[2]]],
+        [[
+            logo_cell,
+            [
+                Paragraph("DIGITAL WAYBILL", title),
+                Paragraph("Safisana Ghana · Every delivery. Verified.", subtitle),
+                Paragraph(f"<b>{waybill.waybill_number}</b> · {waybill.get_status_display()}", body),
+            ],
+            _qr_image(verify_url),
+        ]],
         colWidths=[58 * mm, 85 * mm, 35 * mm],
     )
     header.setStyle(
@@ -132,7 +142,7 @@ def generate_waybill_pdf(waybill):
     meta = [
         [
             Paragraph("Deliver to / Date", label),
-            Paragraph("Dispatch", label),
+            Paragraph("Sales / Dispatch", label),
             Paragraph("References", label),
         ],
         [
@@ -146,14 +156,14 @@ def generate_waybill_pdf(waybill):
             ),
             Paragraph(
                 f"Branch: {waybill.branch}<br/>"
-                f"Driver: {waybill.driver.get_full_name() if waybill.driver else '—'}<br/>"
+                f"Authorised by: {waybill.authorised_by_name or '—'}<br/>"
+                f"Dispatched by: {waybill.dispatched_by_name or '—'}<br/>"
                 f"Vehicle: {waybill.vehicle.registration_number if waybill.vehicle else '—'}<br/>"
-                f"Dispatch: {timezone.localtime(waybill.dispatch_at).strftime('%d %b %Y %H:%M') if waybill.dispatch_at else '—'}<br/>"
                 f"Delivery: {timezone.localtime(waybill.delivery_at).strftime('%d %b %Y %H:%M') if waybill.delivery_at else '—'}",
                 body,
             ),
             Paragraph(
-                f"SO: {waybill.sales_order_ref or '—'}<br/>"
+                f"SO / Phone ref: {waybill.sales_order_ref or '—'}<br/>"
                 f"Invoice: {waybill.invoice_ref or '—'}<br/>"
                 f"PO: {waybill.po_ref or '—'}<br/>"
                 f"Created: {timezone.localtime(waybill.created_at).strftime('%d %b %Y %H:%M')}<br/>"
@@ -178,14 +188,12 @@ def generate_waybill_pdf(waybill):
             ]
         )
     )
-    # Recolor label cells: Paragraph already has muted color; paint header green via a dummy
     story.append(meta_table)
     story.append(Spacer(1, 8))
 
     rows = [["Description", "Qty", "Remarks"]]
     for item in waybill.items.all():
         desc = item.product_name or (item.product.name if item.product_id else "")
-        qty = ""
         if item.delivered_qty is not None:
             qty = str(item.delivered_qty)
         elif item.loaded_qty is not None:
@@ -224,11 +232,11 @@ def generate_waybill_pdf(waybill):
     elif waybill.gps_unavailable_reason:
         gps = f"Unavailable — {waybill.gps_unavailable_reason}"
 
-    story.append(Paragraph("Proof of delivery", ParagraphStyle("h2", parent=title, fontSize=11)))
+    story.append(Paragraph("Sign-off and delivery proof", ParagraphStyle("h2", parent=title, fontSize=11)))
     story.append(
         Paragraph(
-            f"Authorised by: {waybill.authorised_by_name or '—'}<br/>"
-            f"Dispatched by: {waybill.dispatched_by_name or (waybill.driver.get_full_name() if waybill.driver else '—')}<br/>"
+            f"Authorised by: <b>{waybill.authorised_by_name or '—'}</b><br/>"
+            f"Dispatched by: <b>{waybill.dispatched_by_name or '—'}</b><br/>"
             f"Received by: <b>{waybill.customer_rep_name or '—'}</b> "
             f"({waybill.customer_rep_role or '—'})<br/>"
             f"I certify that I have received the above items.<br/>"
@@ -241,29 +249,26 @@ def generate_waybill_pdf(waybill):
     )
     story.append(Spacer(1, 6))
 
-    sig_row = []
-    for field, caption in (
-        (waybill.customer_signature, "Customer signature"),
-        (waybill.driver_signature, "Driver signature"),
-    ):
+    signature_fields = (
+        (waybill.authorised_signature, "Sales / Authorised signature"),
+        (waybill.driver_signature, "Dispatch signature"),
+        (waybill.customer_signature, "Customer / Received-by signature"),
+    )
+    signature_cells = []
+    for field, caption in signature_fields:
         cell = [Paragraph(caption, label)]
-        if field:
-            try:
-                cell.append(Image(field.path, width=55 * mm, height=22 * mm, kind="proportional"))
-            except Exception:
-                cell.append(Paragraph("Captured on file", body))
-        else:
-            cell.append(Paragraph("—", body))
-        sig_row.append(cell)
-    sig_table = Table([sig_row], colWidths=[89 * mm, 89 * mm])
+        image = _stored_image(field, 48 * mm, 19 * mm)
+        cell.append(image if image else Paragraph("—", body))
+        signature_cells.append(cell)
+    sig_table = Table([signature_cells], colWidths=[59.3 * mm, 59.3 * mm, 59.3 * mm])
     sig_table.setStyle(
         TableStyle(
             [
                 ("BOX", (0, 0), (-1, -1), 0.4, GOLD),
                 ("INNERGRID", (0, 0), (-1, -1), 0.3, GOLD),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
                 ("TOPPADDING", (0, 0), (-1, -1), 6),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
             ]
@@ -273,7 +278,7 @@ def generate_waybill_pdf(waybill):
     story.append(Spacer(1, 10))
     story.append(
         Paragraph(
-            "This document is generated by SafiRoute from server-validated delivery data. "
+            "This document is generated by SafiRoute from server-validated waybill data. "
             "Scan the QR code to verify authenticity. Completed waybills are not silently edited; "
             "corrections create an auditable amendment. "
             f"Fingerprint SHA-256: {fingerprint}. "
