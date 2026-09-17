@@ -1,1 +1,0 @@
-Temporary implementation note: Sales mobile state is local-first and sync is idempotent by client UUID. Remove this note before merge.
