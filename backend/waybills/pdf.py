@@ -285,17 +285,23 @@ def generate_waybill_pdf(waybill):
     def _footer(canvas, doc_):
         canvas.saveState()
         canvas.setFillColor(FOREST)
-        canvas.rect(0, 0, A4[0], 12 * mm, fill=1, stroke=0)
+        canvas.rect(0, 0, A4[0], 14 * mm, fill=1, stroke=0)
         canvas.setFillColor(GOLD)
-        canvas.rect(0, 12 * mm, A4[0], 1.2 * mm, fill=1, stroke=0)
+        canvas.rect(0, 14 * mm, A4[0], 1.2 * mm, fill=1, stroke=0)
         canvas.setFillColor(colors.white)
+        canvas.setFont("Courier", 6)
+        canvas.drawString(16 * mm, 8 * mm, fingerprint)
         canvas.setFont("Helvetica", 8)
-        canvas.drawString(16 * mm, 5 * mm, "SafiRoute  ·  Every delivery. Verified.")
-        canvas.drawRightString(A4[0] - 16 * mm, 5 * mm, f"Page {doc_.page}  ·  {verify_url}")
+        canvas.drawString(16 * mm, 3.5 * mm, "SafiRoute  ·  Every delivery. Verified.")
+        canvas.drawRightString(A4[0] - 16 * mm, 3.5 * mm, f"Page {doc_.page}")
         canvas.restoreState()
 
     doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
     pdf_bytes = buffer.getvalue()
+    marker = b"% SafiRoute-fingerprint " + fingerprint.encode("ascii")
+    if marker not in pdf_bytes and fingerprint.encode("ascii") not in pdf_bytes:
+        head, _, rest = pdf_bytes.partition(b"\n")
+        pdf_bytes = head + b"\n" + marker + b"\n" + rest
     waybill.pdf_version += 1
     waybill.pdf_sha256 = sha256_bytes(pdf_bytes)
     waybill.pdf_file.save(
