@@ -13,15 +13,40 @@ export type SignaturePadHandle = {
 type Props = {
   label: string;
   className?: string;
+  value?: string | null;
+  hint?: string;
+  onChange?: (value: string | null) => void;
 };
 
 export const SignaturePad = forwardRef<SignaturePadHandle, Props>(function SignaturePad(
-  { label, className = "" },
+  { label, className = "", value, hint = "Sign with a finger or stylus", onChange },
   ref
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const emptyRef = useRef(true);
   const drawingRef = useRef(false);
+  const valueRef = useRef<string | null | undefined>(value);
+
+  function paintValue(dataUrl: string | null | undefined) {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, rect.width, rect.height);
+    if (!dataUrl) {
+      emptyRef.current = true;
+      return;
+    }
+    const img = new Image();
+    img.onload = () => {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, rect.width, rect.height);
+      ctx.drawImage(img, 0, 0, rect.width, rect.height);
+      emptyRef.current = false;
+    };
+    img.src = dataUrl;
+  }
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -32,21 +57,17 @@ export const SignaturePad = forwardRef<SignaturePadHandle, Props>(function Signa
     const fit = () => {
       const rect = canvas.getBoundingClientRect();
       const dpr = Math.max(1, window.devicePixelRatio || 1);
-      const snapshot = emptyRef.current ? null : canvas.toDataURL();
+      const snapshot = emptyRef.current ? valueRef.current || null : canvas.toDataURL();
       canvas.width = Math.max(1, Math.round(rect.width * dpr));
       canvas.height = Math.max(1, Math.round(rect.height * dpr));
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.lineWidth = 2.6;
-      ctx.strokeStyle = "#0F5C2E";
+      ctx.strokeStyle = "#173b29";
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, rect.width, rect.height);
-      if (snapshot) {
-        const img = new Image();
-        img.onload = () => ctx.drawImage(img, 0, 0, rect.width, rect.height);
-        img.src = snapshot;
-      }
+      if (snapshot) paintValue(snapshot);
     };
 
     fit();
@@ -60,7 +81,11 @@ export const SignaturePad = forwardRef<SignaturePadHandle, Props>(function Signa
 
     const down = (event: PointerEvent) => {
       event.preventDefault();
-      canvas.setPointerCapture(event.pointerId);
+      try {
+        canvas.setPointerCapture(event.pointerId);
+      } catch {
+        // Some embedded browsers do not support pointer capture.
+      }
       drawingRef.current = true;
       const p = point(event);
       ctx.beginPath();
@@ -75,11 +100,17 @@ export const SignaturePad = forwardRef<SignaturePadHandle, Props>(function Signa
       emptyRef.current = false;
     };
     const up = (event: PointerEvent) => {
+      if (!drawingRef.current) return;
       drawingRef.current = false;
       try {
         canvas.releasePointerCapture(event.pointerId);
       } catch {
         /* already released */
+      }
+      if (!emptyRef.current) {
+        const dataUrl = canvas.toDataURL("image/png");
+        valueRef.current = dataUrl;
+        onChange?.(dataUrl);
       }
     };
 
@@ -94,7 +125,13 @@ export const SignaturePad = forwardRef<SignaturePadHandle, Props>(function Signa
       canvas.removeEventListener("pointerup", up);
       canvas.removeEventListener("pointercancel", up);
     };
-  }, []);
+  }, [onChange]);
+
+  useEffect(() => {
+    if (value === undefined || value === valueRef.current) return;
+    valueRef.current = value;
+    paintValue(value);
+  }, [value]);
 
   function clearPad() {
     const canvas = canvasRef.current;
@@ -104,6 +141,8 @@ export const SignaturePad = forwardRef<SignaturePadHandle, Props>(function Signa
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, rect.width, rect.height);
     emptyRef.current = true;
+    valueRef.current = null;
+    onChange?.(null);
   }
 
   useImperativeHandle(ref, () => ({
@@ -123,16 +162,8 @@ export const SignaturePad = forwardRef<SignaturePadHandle, Props>(function Signa
       return canvas.toDataURL("image/png");
     },
     fromDataURL(dataUrl: string) {
-      const canvas = canvasRef.current;
-      const ctx = canvas?.getContext("2d");
-      if (!canvas || !ctx || !dataUrl) return;
-      const img = new Image();
-      img.onload = () => {
-        const rect = canvas.getBoundingClientRect();
-        ctx.drawImage(img, 0, 0, rect.width, rect.height);
-        emptyRef.current = false;
-      };
-      img.src = dataUrl;
+      valueRef.current = dataUrl;
+      paintValue(dataUrl);
     },
     clear: clearPad,
     isEmpty() {
@@ -141,18 +172,21 @@ export const SignaturePad = forwardRef<SignaturePadHandle, Props>(function Signa
   }));
 
   return (
-    <div className={className}>
-      <div className="mb-2 flex items-center justify-between">
-        <label className="text-sm font-semibold">{label}</label>
-        <button type="button" className="text-xs font-semibold text-forest-800 underline" onClick={clearPad}>
-          Clear
-        </button>
+    <div className={`sales-signature ${className}`}>
+      <div className="sales-signature-head">
+        <div>
+          <label className="sales-signature-label">{label}</label>
+          <p className="sales-signature-hint">{valueRef.current ? "Signature captured" : hint}</p>
+        </div>
+        {!emptyRef.current && (
+          <button type="button" className="sales-text-button" onClick={clearPad}>
+            Clear
+          </button>
+        )}
       </div>
-      <canvas
-        ref={canvasRef}
-        className="h-36 w-full touch-none rounded-2xl border-2 border-forest-800/20 bg-white"
-        aria-label={label}
-      />
+      <div className="sales-signature-surface">
+        <canvas ref={canvasRef} aria-label={label} />
+      </div>
     </div>
   );
 });
