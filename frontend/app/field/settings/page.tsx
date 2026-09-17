@@ -9,6 +9,7 @@ import {
   getSalesMobileSettings,
   hashPin,
   listSalesWaybills,
+  restoreSalesBackup,
   saveSalesMobileSettings,
   type SalesMobileSettings,
 } from "@/lib/sales-mobile";
@@ -27,6 +28,7 @@ export default function SalesMobileSettingsPage() {
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
+  const [restoring, setRestoring] = useState(false);
 
   async function refresh() {
     const [profile, waybills] = await Promise.all([getSalesMobileSettings(), listSalesWaybills()]);
@@ -96,11 +98,30 @@ export default function SalesMobileSettingsPage() {
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = `safiroute-sales-backup-${exportedAt.slice(0, 10)}.json`;
+    document.body.appendChild(anchor);
     anchor.click();
+    anchor.remove();
     URL.revokeObjectURL(url);
     const saved = await saveSalesMobileSettings({ ...settings, lastBackupAt: exportedAt });
     setSettings(saved);
     setNotice("Backup exported. Keep a copy away from this phone.");
+  }
+
+  async function restoreBackup(file: File) {
+    setRestoring(true);
+    setNotice("Checking backup…");
+    try {
+      const payload = JSON.parse(await file.text()) as unknown;
+      const result = await restoreSalesBackup(payload);
+      setSettings(result.settings);
+      await refresh();
+      window.dispatchEvent(new Event("safiroute:saved"));
+      setNotice(`${result.restored} waybill${result.restored === 1 ? "" : "s"} restored safely to this phone.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not restore that SafiRoute backup.");
+    } finally {
+      setRestoring(false);
+    }
   }
 
   async function syncNow() {
@@ -211,6 +232,21 @@ export default function SalesMobileSettingsPage() {
           <span className="sales-settings-icon forest">↑</span>
           <span className="sales-settings-copy"><b>Export backup</b><small>{settings.lastBackupAt ? `Last: ${new Date(settings.lastBackupAt).toLocaleDateString("en-GH")}` : "Keep a copy off this phone"}</small></span><i>›</i>
         </button>
+        <label className={`sales-settings-row settings-button ${restoring ? "is-disabled" : ""}`}>
+          <span className="sales-settings-icon gold">↓</span>
+          <span className="sales-settings-copy"><b>{restoring ? "Restoring…" : "Restore backup"}</b><small>Bring saved waybills back to this phone</small></span><i>›</i>
+          <input
+            type="file"
+            accept="application/json,.json"
+            hidden
+            disabled={restoring}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) void restoreBackup(file);
+            }}
+          />
+        </label>
       </section>
 
       <h2 className="sales-settings-section-title">HQ sync</h2>
@@ -222,7 +258,7 @@ export default function SalesMobileSettingsPage() {
         </div>
         <button type="button" className="sales-settings-row settings-button" onClick={syncNow}>
           <span className="sales-settings-icon forest">⇧</span>
-          <span className="sales-settings-copy"><b>Send pending now</b><small>Safe to retry — client UUID prevents duplicate posts</small></span><i>›</i>
+          <span className="sales-settings-copy"><b>Send pending now</b><small>Safe to retry — client UUID prevents duplicates</small></span><i>›</i>
         </button>
       </section>
 
@@ -239,7 +275,7 @@ export default function SalesMobileSettingsPage() {
             }}
           >
             <span className="sales-settings-icon gold">↓</span>
-            <span className="sales-settings-copy"><b>Install SafiRoute</b><small>Put the sales pad on your home screen</small></span><i>›</i>
+            <span className="sales-settings-copy"><b>Install SafiRoute</b><small>Put the Sales pad on your home screen</small></span><i>›</i>
           </button>
         )}
         <div className="sales-settings-row">
