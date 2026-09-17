@@ -5,9 +5,12 @@ on:
     branches: ["**"]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   backend:
-    name: Django tests
+    name: Django tests + Python dependency audit
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -16,36 +19,101 @@ jobs:
       DEBUG: "True"
       DJANGO_ENV: development
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pip-audit
+      - name: Verify dependency graph
+        run: pip check
+      - name: Audit Python dependencies
+        run: pip-audit -r requirements.txt
+      - name: Run Django tests
+        run: python manage.py test
+
+  production-postgres:
+    name: Production config + PostgreSQL
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: safiroute_ci
+          POSTGRES_USER: safiroute
+          POSTGRES_PASSWORD: safiroute_ci_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U safiroute -d safiroute_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DEBUG: "False"
+      DJANGO_ENV: production
+      DJANGO_SECRET_KEY: "ci-only-7ee9237a3c5d4afe9f419fe6e6a20c5c-do-not-use-in-production"
+      ALLOWED_HOSTS: "localhost,127.0.0.1"
+      DB_ENGINE: django.db.backends.postgresql
+      DB_NAME: safiroute_ci
+      DB_USER: safiroute
+      DB_PASSWORD: safiroute_ci_password
+      DB_HOST: 127.0.0.1
+      DB_PORT: "5432"
+      PUBLIC_BASE_URL: https://safiroute.example.invalid
+      API_BASE_URL: https://api.safiroute.example.invalid
+      CORS_ALLOWED_ORIGINS: https://safiroute.example.invalid
+      CSRF_TRUSTED_ORIGINS: https://safiroute.example.invalid
+      SESSION_COOKIE_SECURE: "True"
+      CSRF_COOKIE_SECURE: "True"
+      SECURE_SSL_REDIRECT: "True"
+      SECURE_HSTS_SECONDS: "31536000"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Run tests
+      - name: Validate deploy settings
+        run: python manage.py check --deploy --fail-level WARNING
+      - name: Run migrations on PostgreSQL
+        run: python manage.py migrate --noinput
+      - name: Run test suite on PostgreSQL
         run: python manage.py test
 
   field-pwa:
-    name: Playwright field PWA (Pixel + desktop)
+    name: Frontend security + field PWA (Pixel + desktop)
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Install Node dependencies
         run: npm ci
-      - name: Install Chromium for Playwright
-        run: npx playwright install --with-deps chromium
+      - name: Audit production Node dependencies
+        run: npm run audit:prod
       - name: Build Next.js
         run: npm run build
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
       - name: Pixel + desktop offline PWA tests
         run: npm run test:e2e
         env:
