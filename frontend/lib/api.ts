@@ -198,7 +198,7 @@ export async function api<T = unknown>(path: string, options: RequestInit = {}):
 }
 
 export function loginRequest(username: string, password: string) {
-  return api<{ ok: boolean; session: boolean; token: string; user: User }>("/auth/login/", {
+  return api<{ ok: boolean; session: boolean; user: User }>("/auth/login/", {
     method: "POST",
     body: JSON.stringify({ username, password }),
   });
