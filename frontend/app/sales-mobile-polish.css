@@ -1,0 +1,68 @@
+.sales-reference-note {
+  margin: 12px 0 0;
+  color: var(--sr-muted);
+  font-size: .72rem;
+  font-weight: 600;
+}
+
+.sales-complete-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.sales-complete-banner > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.sales-complete-banner button {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 0 14px;
+  color: #fff9e8;
+  background: var(--sr-forest-800);
+  border: 0;
+  border-radius: 12px;
+  font-size: .78rem;
+  font-weight: 800;
+}
+
+.sales-verify-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-top: 14px;
+  text-decoration: none;
+}
+
+.sales-settings-row.is-disabled {
+  opacity: .6;
+  pointer-events: none;
+}
+
+@media (max-width: 520px) {
+  .sales-complete-banner {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .sales-complete-banner button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sales-mobile-shell::before,
+  .sales-mobile-shell::after,
+  .sales-mobile-topbar::after,
+  .waybill-route-live,
+  .waybill-journey-paper,
+  .waybill-journey-pin,
+  .waybill-journey-verified {
+    animation: none !important;
+  }
+}
