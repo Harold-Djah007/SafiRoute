@@ -3,7 +3,8 @@ from django.urls import include, path
 from django.conf import settings
 from django.conf.urls.static import static
 
-from waybills.views import csrf_token, health, login, logout_view, me, token_login, verify_waybill
+from waybills.auth_views import session_login, token_login
+from waybills.views import csrf_token, health, logout_view, me, verify_waybill
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -12,8 +13,8 @@ urlpatterns = [
     path("api/auth/token/", token_login),
     path("api/auth/csrf/", csrf_token),
     path("api/auth/csrf", csrf_token),
-    path("api/auth/login/", login),
-    path("api/auth/login", login),
+    path("api/auth/login/", session_login),
+    path("api/auth/login", session_login),
     path("api/auth/logout/", logout_view),
     path("api/auth/logout", logout_view),
     path("api/me/", me),
