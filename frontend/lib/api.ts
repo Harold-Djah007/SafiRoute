@@ -269,12 +269,11 @@ export async function bootstrapSession(): Promise<User | null> {
     saveSession(user);
     return user;
   } catch {
-    const offline = typeof navigator !== "undefined" && navigator.onLine === false;
-    const cached = offline ? readOfflineUser() : null;
-    if (cached) {
-      sessionStorage.setItem(USER_KEY, JSON.stringify(cached));
-      return cached;
-    }
+    // Keep the local-first shell usable when HQ is temporarily unreachable.
+    // `readUser` uses sessionStorage while online and the non-secret persisted
+    // Sales profile only when the browser reports that it is offline.
+    const cached = readUser();
+    if (cached) return cached;
     sessionStorage.removeItem(USER_KEY);
     return null;
   }
