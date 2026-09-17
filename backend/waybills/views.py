@@ -10,12 +10,11 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from rest_framework import status, viewsets
 from rest_framework.authtoken.models import Token
-from rest_framework.decorators import action, api_view, authentication_classes, permission_classes, throttle_classes
+from rest_framework.decorators import action, api_view, authentication_classes, permission_classes
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.throttling import SimpleRateThrottle
 
 from .models import (
     Customer,
@@ -45,17 +44,6 @@ from .serializers import (
     WaybillListSerializer,
     WaybillSerializer,
 )
-
-
-class LoginRateThrottle(SimpleRateThrottle):
-    """Limit credential guessing by source address on every login endpoint."""
-
-    scope = "login"
-    rate = "10/min"
-
-    def get_cache_key(self, request, view):
-        ident = request.META.get("REMOTE_ADDR") or self.get_ident(request)
-        return self.cache_format % {"scope": self.scope, "ident": ident}
 
 
 def _as_list(value):
@@ -115,7 +103,6 @@ def csrf_token(request):
 @api_view(["POST"])
 @authentication_classes([])
 @permission_classes([AllowAny])
-@throttle_classes([LoginRateThrottle])
 def login(request):
     user = authenticate(
         username=request.data.get("username"),
@@ -124,30 +111,15 @@ def login(request):
     if not user or not user.is_active:
         return Response({"detail": "Invalid credentials."}, status=status.HTTP_400_BAD_REQUEST)
     django_login(request, user)
+    token, _ = Token.objects.get_or_create(user=user)
     return Response(
         {
             "ok": True,
             "session": True,
+            "token": token.key,
             "user": UserSerializer(user).data,
         }
     )
-
-
-@api_view(["POST"])
-@authentication_classes([])
-@permission_classes([AllowAny])
-@throttle_classes([LoginRateThrottle])
-def token_login(request):
-    """Issue API tokens for trusted scripts without exposing them to browser session login."""
-
-    user = authenticate(
-        username=request.data.get("username"),
-        password=request.data.get("password"),
-    )
-    if not user or not user.is_active:
-        return Response({"detail": "Invalid credentials."}, status=status.HTTP_400_BAD_REQUEST)
-    token, _ = Token.objects.get_or_create(user=user)
-    return Response({"token": token.key})
 
 
 @api_view(["POST"])
@@ -446,19 +418,135 @@ class WaybillViewSet(viewsets.ModelViewSet):
         if not can_dispatch(request.user):
             raise PermissionDenied()
         _require_transition(waybill, {Waybill.Status.LOADED, Waybill.Status.APPROVED})
-        driver_id = request.data.get("driver_id") or request.data.get("driver")
-        vehicle_id = request.data.get("vehicle_id") or request.data.get("vehicle")
+        driver_id = request.data.get("driver") or (waybill.driver_id)
+        vehicle_id = request.data.get("vehicle") or (waybill.vehicle_id)
         if not driver_id or not vehicle_id:
-            raise ValidationError({"detail": "Driver and vehicle are required before dispatch."})
-        driver = get_object_or_404(User, pk=driver_id, role=User.Role.DRIVER, is_active=True)
-        vehicle = get_object_or_404(Vehicle, pk=vehicle_id, is_active=True)
+            raise ValidationError({"detail": "Driver and vehicle are required to dispatch."})
         previous = waybill.status
-        waybill.status = Waybill.Status.DISPATCHED
+        driver = get_object_or_404(User, pk=driver_id, role=User.Role.DRIVER)
         waybill.driver = driver
-        waybill.vehicle = vehicle
+        waybill.vehicle_id = vehicle_id
+        waybill.driver_phone = request.data.get("driver_phone") or driver.phone
+        waybill.status = Waybill.Status.DISPATCHED
         waybill.dispatch_at = timezone.now()
-        waybill.save(update_fields=["status", "driver", "vehicle", "dispatch_at", "updated_at"])
+        waybill.dispatch_lat = _optional_float(request.data.get("lat"))
+        waybill.dispatch_lng = _optional_float(request.data.get("lng"))
+        waybill.dispatch_gps_accuracy = _optional_float(request.data.get("gps_accuracy"))
+        waybill.save()
         record_audit(waybill, request.user, "dispatched", previous, waybill.status, request=request)
+        return Response(WaybillSerializer(waybill, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"])
+    def start_transit(self, request, pk=None):
+        waybill = self.get_object()
+        if request.user.role == User.Role.DRIVER and waybill.driver_id != request.user.id:
+            raise PermissionDenied()
+        _require_transition(waybill, {Waybill.Status.DISPATCHED})
+        previous = waybill.status
+        waybill.status = Waybill.Status.IN_TRANSIT
+        waybill.save(update_fields=["status", "updated_at"])
+        record_audit(waybill, request.user, "in_transit", previous, waybill.status, request=request)
+        return Response(WaybillSerializer(waybill, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"])
+    def complete_delivery(self, request, pk=None):
+        waybill = self.get_object()
+        if not can_deliver(request.user):
+            raise PermissionDenied()
+        if request.user.role == User.Role.DRIVER and waybill.driver_id != request.user.id:
+            raise PermissionDenied("Drivers can only complete their assigned waybills.")
+
+        client_uuid = request.data.get("client_uuid")
+        if client_uuid:
+            existing = Waybill.objects.filter(client_uuid=client_uuid).exclude(pk=waybill.pk).first()
+            if existing:
+                return Response(
+                    WaybillSerializer(existing, context={"request": request}).data,
+                    status=status.HTTP_200_OK,
+                )
+        if waybill.is_terminal:
+            if not waybill.pdf_file:
+                generate_waybill_pdf(waybill)
+                waybill.refresh_from_db()
+            if client_uuid and str(waybill.client_uuid or "") == str(client_uuid):
+                return Response(WaybillSerializer(waybill, context={"request": request}).data)
+            raise ValidationError({"detail": "This waybill is already completed."})
+
+        _require_transition(
+            waybill,
+            {Waybill.Status.DISPATCHED, Waybill.Status.IN_TRANSIT, Waybill.Status.LOADED},
+        )
+
+        outcome = request.data.get("outcome", "delivered")
+        if outcome not in {"delivered", "partially_delivered", "delivery_failed"}:
+            raise ValidationError({"detail": "outcome must be delivered, partially_delivered, or delivery_failed."})
+        rep_name = (request.data.get("customer_rep_name") or "").strip()
+        if outcome != "delivery_failed" and not rep_name:
+            raise ValidationError({"detail": "Customer representative name is required."})
+        if outcome == "delivery_failed" and not (request.data.get("failure_reason") or "").strip():
+            raise ValidationError({"detail": "Record why this delivery failed."})
+        has_fix = request.data.get("lat") not in (None, "")
+        gps_reason = (request.data.get("gps_unavailable_reason") or "").strip()
+        if not has_fix and not gps_reason:
+            raise ValidationError({"detail": "Capture GPS or record why it was unavailable."})
+
+        items = _as_list(request.data.get("items"))
+        item_map = {item.id: item for item in waybill.items.all()}
+        for payload in items:
+            item = item_map.get(int(payload.get("id", 0)))
+            if not item:
+                continue
+            item.delivered_qty = _qty(payload.get("delivered_qty"), item.loaded_qty or item.ordered_qty)
+            item.rejected_qty = _qty(payload.get("rejected_qty"), Decimal("0"))
+            item.notes = payload.get("notes", item.notes)
+            item.save()
+
+        if waybill.customer_signature and waybill.driver_signature and waybill.is_terminal:
+            raise ValidationError({"detail": "This waybill is already completed."})
+
+        previous = waybill.status
+        waybill.status = outcome
+        waybill.sync_status = Waybill.SyncStatus.SYNCED
+        waybill.customer_rep_name = request.data.get("customer_rep_name", "")
+        waybill.customer_rep_role = request.data.get("customer_rep_role", "")
+        waybill.delivery_notes = request.data.get("delivery_notes", "")
+        waybill.failure_reason = request.data.get("failure_reason", "")
+        waybill.gps_unavailable_reason = request.data.get("gps_unavailable_reason", "")
+        waybill.delivery_lat = _optional_float(request.data.get("lat"))
+        waybill.delivery_lng = _optional_float(request.data.get("lng"))
+        waybill.delivery_gps_accuracy = _optional_float(request.data.get("gps_accuracy"))
+        device_at = request.data.get("device_timestamp")
+        waybill.delivery_device_at = parse_datetime(device_at) if device_at else timezone.now()
+        waybill.delivery_at = timezone.now()
+        if client_uuid:
+            waybill.client_uuid = client_uuid
+        if request.FILES.get("customer_signature"):
+            waybill.customer_signature = request.FILES["customer_signature"]
+        if request.FILES.get("driver_signature"):
+            waybill.driver_signature = request.FILES["driver_signature"]
+        waybill.save()
+
+        photos = request.FILES.getlist("photos") or request.FILES.getlist("photos[]")
+        for photo in photos:
+            WaybillPhoto.objects.create(
+                waybill=waybill,
+                image=photo,
+                caption=request.data.get("photo_caption", "Delivery photo"),
+                uploaded_by=request.user,
+            )
+
+        generate_waybill_pdf(waybill)
+        record_audit(
+            waybill,
+            request.user,
+            "completed",
+            previous,
+            waybill.status,
+            detail={"outcome": outcome, "client_uuid": str(client_uuid) if client_uuid else None},
+            request=request,
+            device_timestamp=waybill.delivery_device_at,
+        )
+        waybill.refresh_from_db()
         return Response(WaybillSerializer(waybill, context={"request": request}).data)
 
     @action(detail=True, methods=["post"])
@@ -466,14 +554,15 @@ class WaybillViewSet(viewsets.ModelViewSet):
         waybill = self.get_object()
         if not can_cancel(request.user):
             raise PermissionDenied()
-        if waybill.status in {Waybill.Status.DELIVERED, Waybill.Status.PARTIALLY_DELIVERED, Waybill.Status.CANCELLED}:
-            raise ValidationError({"detail": "This waybill can no longer be cancelled."})
+        if waybill.is_terminal and waybill.status != Waybill.Status.CANCELLED:
+            raise ValidationError({"detail": "Completed waybills cannot be cancelled. Create an amendment."})
         reason = request.data.get("reason", "").strip()
         if not reason:
             raise ValidationError({"detail": "A cancellation reason is required."})
         previous = waybill.status
         waybill.status = Waybill.Status.CANCELLED
-        waybill.save(update_fields=["status", "updated_at"])
+        waybill.cancellation_reason = reason
+        waybill.save(update_fields=["status", "cancellation_reason", "updated_at"])
         record_audit(
             waybill,
             request.user,
@@ -485,82 +574,14 @@ class WaybillViewSet(viewsets.ModelViewSet):
         )
         return Response(WaybillSerializer(waybill, context={"request": request}).data)
 
-    @action(detail=True, methods=["post"], parser_classes=[MultiPartParser, FormParser, JSONParser])
-    def deliver(self, request, pk=None):
-        waybill = self.get_object()
-        if not can_deliver(request.user, waybill):
-            raise PermissionDenied("Only the assigned driver can complete this delivery.")
-        if waybill.status in {Waybill.Status.DELIVERED, Waybill.Status.PARTIALLY_DELIVERED, Waybill.Status.DELIVERY_FAILED}:
-            if request.data.get("client_uuid") and str(waybill.delivery_client_uuid or "") == str(request.data.get("client_uuid")):
-                return Response(WaybillSerializer(waybill, context={"request": request}).data)
-            raise ValidationError({"detail": "Delivery is already completed."})
-        _require_transition(waybill, {Waybill.Status.LOADED, Waybill.Status.DISPATCHED, Waybill.Status.IN_TRANSIT})
-        items = _as_list(request.data.get("items"))
-        outcome = request.data.get("outcome", "delivered")
-        status_map = {
-            "delivered": Waybill.Status.DELIVERED,
-            "partial": Waybill.Status.PARTIALLY_DELIVERED,
-            "failed": Waybill.Status.DELIVERY_FAILED,
-        }
-        if outcome not in status_map:
-            raise ValidationError({"detail": "Invalid delivery outcome."})
-        item_map = {item.id: item for item in waybill.items.all()}
-        if outcome != "failed" and not items:
-            raise ValidationError({"detail": "Delivered quantities are required."})
-        for payload in items:
-            item = item_map.get(int(payload.get("id", 0)))
-            if not item:
-                continue
-            delivered_qty = _qty(payload.get("delivered_qty"), Decimal("0"))
-            loaded = item.loaded_qty if item.loaded_qty is not None else item.ordered_qty
-            if delivered_qty < 0 or delivered_qty > loaded:
-                raise ValidationError({"detail": f"Delivered quantity for {item.product.name} must be between 0 and {loaded}."})
-            item.delivered_qty = delivered_qty
-            item.save(update_fields=["delivered_qty"])
-        latitude = _optional_float(request.data.get("delivery_lat"))
-        longitude = _optional_float(request.data.get("delivery_lng"))
-        accuracy = _optional_float(request.data.get("gps_accuracy_m"))
-        if outcome != "failed" and (latitude is None or longitude is None):
-            raise ValidationError({"detail": "GPS position is required for completed deliveries."})
-        if latitude is not None and not -90 <= latitude <= 90:
-            raise ValidationError({"detail": "Latitude is out of range."})
-        if longitude is not None and not -180 <= longitude <= 180:
-            raise ValidationError({"detail": "Longitude is out of range."})
-        if accuracy is not None and accuracy < 0:
-            raise ValidationError({"detail": "GPS accuracy cannot be negative."})
-        customer_signature = request.FILES.get("customer_signature")
-        driver_signature = request.FILES.get("driver_signature")
-        if outcome != "failed" and not (customer_signature or waybill.customer_signature):
-            raise ValidationError({"detail": "Customer signature is required."})
-        if outcome != "failed" and not (driver_signature or waybill.driver_signature):
-            raise ValidationError({"detail": "Driver signature is required."})
-        previous = waybill.status
-        if customer_signature:
-            waybill.customer_signature = customer_signature
-        if driver_signature:
-            waybill.driver_signature = driver_signature
-        waybill.delivery_lat = latitude
-        waybill.delivery_lng = longitude
-        waybill.gps_accuracy_m = accuracy
-        waybill.delivery_notes = request.data.get("delivery_notes", "")
-        waybill.delivery_client_uuid = request.data.get("client_uuid") or waybill.delivery_client_uuid
-        waybill.delivery_at = parse_datetime(request.data.get("delivery_at", "")) or timezone.now()
-        waybill.status = status_map[outcome]
-        waybill.sync_status = Waybill.SyncStatus.SYNCED
-        waybill.save()
-        for uploaded in request.FILES.getlist("photos"):
-            if uploaded.size > 8 * 1024 * 1024:
-                raise ValidationError({"detail": "Each delivery photo must be 8 MB or smaller."})
-            WaybillPhoto.objects.create(waybill=waybill, image=uploaded, uploaded_by=request.user)
-        record_audit(waybill, request.user, "delivery_completed", previous, waybill.status, request=request)
-        generate_waybill_pdf(waybill)
-        return Response(WaybillSerializer(waybill, context={"request": request}).data)
-
     @action(detail=True, methods=["get"])
     def pdf(self, request, pk=None):
         waybill = self.get_object()
         if not waybill.pdf_file:
-            generate_waybill_pdf(waybill)
-        if not waybill.pdf_file:
-            raise Http404("PDF is not available.")
-        return FileResponse(waybill.pdf_file.open("rb"), content_type="application/pdf", as_attachment=True, filename=f"{waybill.waybill_number}.pdf")
+            if waybill.is_terminal:
+                generate_waybill_pdf(waybill)
+                waybill.refresh_from_db()
+            else:
+                raise Http404("PDF is generated after delivery is completed.")
+        record_audit(waybill, request.user, "pdf_downloaded", request=request)
+        return FileResponse(waybill.pdf_file.open("rb"), as_attachment=True, filename=f"{waybill.waybill_number}.pdf")
