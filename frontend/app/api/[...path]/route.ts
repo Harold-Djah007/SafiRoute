@@ -33,6 +33,18 @@ async function findDjango(): Promise<string | null> {
   return null;
 }
 
+function applySetCookies(from: Headers, to: Headers) {
+  const cookies =
+    typeof from.getSetCookie === "function"
+      ? from.getSetCookie()
+      : from.get("set-cookie")
+        ? [from.get("set-cookie") as string]
+        : [];
+  for (const cookie of cookies) {
+    to.append("set-cookie", cookie.replace(/;\s*Domain=[^;]+/i, ""));
+  }
+}
+
 async function proxy(request: NextRequest, path: string[]) {
   const origin = await findDjango();
   if (!origin) {
@@ -70,9 +82,11 @@ async function proxy(request: NextRequest, path: string[]) {
     });
     const out = new Headers();
     response.headers.forEach((value, key) => {
-      if (["transfer-encoding", "connection"].includes(key.toLowerCase())) return;
+      const lower = key.toLowerCase();
+      if (["transfer-encoding", "connection", "set-cookie"].includes(lower)) return;
       out.set(key, value);
     });
+    applySetCookies(response.headers, out);
     return new NextResponse(response.body, { status: response.status, headers: out });
   } catch {
     cachedOrigin = null;

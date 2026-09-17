@@ -110,6 +110,8 @@ export type Waybill = {
   cancellation_reason: string;
   pdf_file: string | null;
   pdf_version: number;
+  document_fingerprint?: string;
+  pdf_sha256?: string;
   items: WaybillItem[];
   photos: { id: number; image: string; caption: string; captured_at: string }[];
   audit_logs: {
@@ -124,9 +126,25 @@ export type Waybill = {
   created_at: string;
 };
 
-function token() {
-  if (typeof window === "undefined") return "";
-  return localStorage.getItem("safiroute_token") || "";
+const USER_KEY = "safiroute_user";
+
+function readCookie(name: string) {
+  if (typeof document === "undefined") return "";
+  const prefix = `${name}=`;
+  for (const part of document.cookie.split(";")) {
+    const trimmed = part.trim();
+    if (trimmed.startsWith(prefix)) return decodeURIComponent(trimmed.slice(prefix.length));
+  }
+  return "";
+}
+
+async function csrfToken() {
+  const fromCookie = readCookie("csrftoken");
+  if (fromCookie) return fromCookie;
+  const res = await fetch(`${API_URL}/auth/csrf/`, { credentials: "include", cache: "no-store" });
+  if (!res.ok) return "";
+  const data = (await res.json()) as { csrfToken?: string };
+  return data.csrfToken || readCookie("csrftoken");
 }
 
 export function mediaUrl(path?: string | null) {
@@ -143,18 +161,23 @@ export function mediaUrl(path?: string | null) {
   return path.startsWith("/") ? path : `${API_ORIGIN}${path}`;
 }
 
-export async function api<T = unknown>(
-  path: string,
-  options: RequestInit = {}
-): Promise<T> {
+export async function api<T = unknown>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
   const isForm = options.body instanceof FormData;
-  if (!isForm && !headers.has("Content-Type")) {
+  if (!isForm && !headers.has("Content-Type") && options.body) {
     headers.set("Content-Type", "application/json");
   }
-  const t = token();
-  if (t) headers.set("Authorization", `Token ${t}`);
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  const method = (options.method || "GET").toUpperCase();
+  if (!["GET", "HEAD", "OPTIONS"].includes(method) && !headers.has("X-CSRFToken")) {
+    const csrf = await csrfToken();
+    if (csrf) headers.set("X-CSRFToken", csrf);
+  }
+  const res = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers,
+    credentials: "include",
+    cache: "no-store",
+  });
   if (res.status === 204) return undefined as T;
   const text = await res.text();
   let data: Record<string, unknown> = {};
@@ -175,24 +198,52 @@ export async function api<T = unknown>(
 }
 
 export function loginRequest(username: string, password: string) {
-  return api<{ token: string; user: User }>("/auth/login/", {
+  return api<{ ok: boolean; session: boolean; token: string; user: User }>("/auth/login/", {
     method: "POST",
     body: JSON.stringify({ username, password }),
   });
 }
 
-export function saveSession(tokenValue: string, user: User) {
-  localStorage.setItem("safiroute_token", tokenValue);
-  localStorage.setItem("safiroute_user", JSON.stringify(user));
+export function saveSession(user: User) {
+  if (typeof window === "undefined") return;
+  sessionStorage.setItem(USER_KEY, JSON.stringify(user));
+  localStorage.removeItem("safiroute_token");
+  localStorage.removeItem("safiroute_user");
+}
+
+export async function logoutRequest() {
+  try {
+    await api("/auth/logout/", { method: "POST" });
+  } catch {
+    /* session may already be gone */
+  }
+  clearSession();
 }
 
 export function clearSession() {
+  if (typeof window === "undefined") return;
+  sessionStorage.removeItem(USER_KEY);
   localStorage.removeItem("safiroute_token");
   localStorage.removeItem("safiroute_user");
 }
 
 export function readUser(): User | null {
   if (typeof window === "undefined") return null;
-  const raw = localStorage.getItem("safiroute_user");
+  const raw = sessionStorage.getItem(USER_KEY);
   return raw ? (JSON.parse(raw) as User) : null;
+}
+
+export async function bootstrapSession(): Promise<User | null> {
+  try {
+    const user = await api<User>("/me/");
+    saveSession(user);
+    return user;
+  } catch {
+    const cached = readUser();
+    if (cached && typeof navigator !== "undefined" && navigator.onLine === false) {
+      return cached;
+    }
+    clearSession();
+    return null;
+  }
 }

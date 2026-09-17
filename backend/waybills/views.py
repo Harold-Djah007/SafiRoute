@@ -1,12 +1,13 @@
 import json
 from decimal import Decimal, InvalidOperation
 
+from django.contrib.auth import authenticate, login as django_login, logout as django_logout
 from django.db.models import Count, Q
 from django.http import FileResponse, Http404
+from django.middleware.csrf import get_token
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
-from django.contrib.auth import authenticate
 from rest_framework import status, viewsets
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action, api_view, authentication_classes, permission_classes
@@ -25,6 +26,7 @@ from .models import (
     record_audit,
 )
 from .pdf import generate_waybill_pdf
+from .fingerprints import pdf_matches_stored_hash
 from .permissions import (
     HasWaybillAccess,
     can_approve,
@@ -91,6 +93,13 @@ def health(_request):
     return Response({"ok": True, "service": "SafiRoute", "tagline": "Every delivery. Verified."})
 
 
+@api_view(["GET"])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def csrf_token(request):
+    return Response({"csrfToken": get_token(request)})
+
+
 @api_view(["POST"])
 @authentication_classes([])
 @permission_classes([AllowAny])
@@ -101,8 +110,23 @@ def login(request):
     )
     if not user or not user.is_active:
         return Response({"detail": "Invalid credentials."}, status=status.HTTP_400_BAD_REQUEST)
+    django_login(request, user)
     token, _ = Token.objects.get_or_create(user=user)
-    return Response({"token": token.key, "user": UserSerializer(user).data})
+    return Response(
+        {
+            "ok": True,
+            "session": True,
+            "token": token.key,
+            "user": UserSerializer(user).data,
+        }
+    )
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def logout_view(request):
+    django_logout(request)
+    return Response({"ok": True})
 
 
 @api_view(["GET"])
@@ -136,6 +160,9 @@ def verify_waybill(request, token):
         "has_driver_signature": bool(waybill.driver_signature),
         "has_gps": waybill.delivery_lat is not None and waybill.delivery_lng is not None,
         "photo_count": waybill.photos.count(),
+        "document_fingerprint": waybill.document_fingerprint,
+        "pdf_sha256": waybill.pdf_sha256,
+        "pdf_integrity_ok": pdf_matches_stored_hash(waybill)[0] if waybill.pdf_file else None,
     }
     return Response(payload)
 

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { clearSession, readUser, type User } from "@/lib/api";
+import { bootstrapSession, logoutRequest, readUser, type User } from "@/lib/api";
 
 const NAV = [
   { href: "/dashboard", label: "Operations", roles: ["admin", "sales", "supervisor", "warehouse", "finance"] },
@@ -81,8 +81,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <button
             className="mt-3 text-gold-400 underline-offset-4 hover:underline"
             onClick={() => {
-              clearSession();
-              router.replace("/");
+              void logoutRequest().then(() => router.replace("/"));
             }}
           >
             Sign out

@@ -79,6 +79,8 @@ class WaybillWorkflowTests(TestCase):
         self.assertEqual(complete.status_code, 200, complete.data)
         self.assertEqual(complete.data["status"], "delivered")
         self.assertTrue(complete.data["pdf_file"])
+        self.assertEqual(len(complete.data["document_fingerprint"]), 64)
+        self.assertEqual(len(complete.data["pdf_sha256"]), 64)
 
         token = complete.data["verification_token"]
         self.client.credentials()

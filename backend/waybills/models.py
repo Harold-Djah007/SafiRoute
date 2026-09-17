@@ -5,6 +5,8 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models, transaction
 from django.utils import timezone
 
+from .fingerprints import audit_entry_hash
+
 
 class User(AbstractUser):
     class Role(models.TextChoices):
@@ -159,6 +161,8 @@ class Waybill(models.Model):
 
     pdf_file = models.FileField(upload_to="waybills/", blank=True, null=True)
     pdf_version = models.PositiveIntegerField(default=0)
+    document_fingerprint = models.CharField(max_length=64, blank=True)
+    pdf_sha256 = models.CharField(max_length=64, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -250,6 +254,8 @@ class AuditLog(models.Model):
     detail = models.JSONField(default=dict, blank=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     device_timestamp = models.DateTimeField(null=True, blank=True)
+    prev_hash = models.CharField(max_length=64, blank=True, default="")
+    entry_hash = models.CharField(max_length=64, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -267,13 +273,32 @@ def client_ip(request):
 
 
 def record_audit(waybill, actor, action, from_status="", to_status="", detail=None, request=None, device_timestamp=None):
-    AuditLog.objects.create(
+    last = (
+        AuditLog.objects.filter(waybill=waybill)
+        .exclude(entry_hash="")
+        .order_by("-id")
+        .first()
+    )
+    prev_hash = last.entry_hash if last else "0" * 64
+    payload_detail = detail or {}
+    entry_hash = audit_entry_hash(
+        waybill_number=waybill.waybill_number,
+        actor_id=actor.pk,
+        action=action,
+        from_status=from_status or "",
+        to_status=to_status or "",
+        detail=payload_detail,
+        prev_hash=prev_hash,
+    )
+    return AuditLog.objects.create(
         waybill=waybill,
         actor=actor,
         action=action,
         from_status=from_status or "",
         to_status=to_status or "",
-        detail=detail or {},
+        detail=payload_detail,
         ip_address=client_ip(request) if request else None,
         device_timestamp=device_timestamp,
+        prev_hash=prev_hash,
+        entry_hash=entry_hash,
     )

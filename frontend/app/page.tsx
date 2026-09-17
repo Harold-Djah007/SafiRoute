@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { loginRequest, readUser, saveSession } from "@/lib/api";
+import { bootstrapSession, loginRequest, readUser, saveSession } from "@/lib/api";
 
 const DEMOS = [
   ["sales", "Sales officer — create waybills"],
@@ -22,8 +22,9 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    const user = readUser();
-    if (user) router.replace(user.role === "driver" ? "/field" : "/dashboard");
+    bootstrapSession().then((user) => {
+      if (user) router.replace(user.role === "driver" ? "/field" : "/dashboard");
+    });
   }, [router]);
 
   async function onSubmit(event: FormEvent) {
@@ -32,7 +33,7 @@ export default function LoginPage() {
     setError("");
     try {
       const data = await loginRequest(username, password);
-      saveSession(data.token, data.user);
+      saveSession(data.user);
       router.push(data.user.role === "driver" ? "/field" : "/dashboard");
     } catch (err) {
       setError(
