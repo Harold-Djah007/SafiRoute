@@ -6,7 +6,7 @@
   "scripts": {
     "start": "python3 -m http.server 4173",
     "test": "node --test",
-    "check": "node --check app.js && node --check storage.js && node --check model.js && node --check sw.js"
+    "check": "node --check app.js && node --check storage.js && node --check model.js && node --check sync.js && node --check sw.js"
   }
 }
 

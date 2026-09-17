@@ -7,10 +7,11 @@ SafiRoute is Safisana Ghana’s digital waybill and proof-of-delivery system. Th
 ## What works in this milestone (offline PWA)
 
 - Installable mobile-friendly web app shell
-- Offline app loading through a service worker
+- Offline app loading through a service worker, with a **Reload** prompt when a new shell is waiting (`skipWaiting`)
 - Device-local IndexedDB storage
 - Automatic draft saving while you type (“Saved on this device.”)
 - The **same Safisana paper pad** as the NCR book, used by Sales when a customer buys compost: Deliver to, Date, Contact, Address, Description / Qty / Remarks, then Sales, Dispatch, and the customer sign
+- A **Before Complete** checklist (Deliver to, lines, three signatures, GPS/photo)
 - Draft and completed waybill workflows
 - Customer, product, driver, and vehicle information
 - GPS capture with accuracy and timestamp
@@ -18,30 +19,28 @@ SafiRoute is Safisana Ghana’s digital waybill and proof-of-delivery system. Th
 - Delivery photo capture/upload
 - Online/offline status indicator
 - Read-only protection after a delivery is completed
-- Pending-server-sync state that is honest about backend availability
-- JSON backup export
+- Honest HQ sync: completed pads stay `pending` on the phone until Django accepts `POST /api/pwa/ingest/`
+- JSON backup export, with a nag if many pads exist and none has been exported
 - Operator setup, Settings page, and session lock / log out on this phone
 - Responsive phone and desktop layouts
 
 ## Important current limitations
 
-This PWA is the offline client foundation, not the finished production system:
+This PWA is the offline sales pad plus a one-way ingest pipe, not the finished production HQ system:
 
-- Server/API synchronization and user accounts are not wired into this shell yet
-- Multi-device access and central dashboard live in `frontend/` + `backend/` (separate stack)
-- Conflict handling against a live server is not in the PWA
-- Automatic PDF and QR verification are on the Django stack, not this shell
-- Clearing browser data can remove locally stored waybills — use **Export backup** during testing
+- There is **no Safisana account login on the phone**. Name-only setup stays. HQ sync uses a Django origin URL, not a role dropdown.
+- Multi-device accounts, the Next.js dashboard, Flutter, QR verification, and the full approval/load/dispatch workflow still live in `frontend/` + `backend/` + `mobile/`
+- Conflict handling is first-write-wins on `client_uuid`; HQ does not push edits back to the phone
+- Clearing browser data can remove locally stored waybills — use **Export backup**
 - GPS requires permission and normally needs HTTPS or localhost
 
-Records remain on that phone/browser because the PWA’s synchronization backend is not built yet. It is suitable for an offline prototype, but not yet safe for full production field deployment.
+Set **Settings → HQ server** to the Django origin (for local testing, `http://127.0.0.1:8000`). Completed pads POST to `/api/pwa/ingest/` only when the phone is online. A pad is marked **On HQ** only after the server returns `accepted`. Optional env `PWA_INGEST_TOKEN` on Django requires header `X-SafiRoute-Ingest`.
 
 ## Test run (offline PWA — no Django)
 
-Requirements: Python 3 and a modern browser. From WSL or any Unix shell:
+Requirements: Python 3 and a modern browser.
 
 ```bash
-cd "$HOME/projects"
 git clone https://github.com/Harold-Djah007/SafiRoute.git
 cd SafiRoute
 git checkout cursor/offline-pwa-foundation-cd9e   # or pull this branch

@@ -3,6 +3,7 @@
 from pathlib import Path
 import os
 
+from corsheaders.defaults import default_headers
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -94,11 +95,13 @@ CORS_ALLOWED_ORIGINS = [
     origin.strip()
     for origin in os.getenv(
         "CORS_ALLOWED_ORIGINS",
-        "http://localhost:3000,http://127.0.0.1:3000",
+        "http://localhost:3000,http://127.0.0.1:3000,http://localhost:4173,http://127.0.0.1:4173",
     ).split(",")
     if origin.strip()
 ]
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [*default_headers, "x-safiroute-ingest"]
+PWA_INGEST_TOKEN = os.getenv("PWA_INGEST_TOKEN", "")
 
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://localhost:3000")
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")

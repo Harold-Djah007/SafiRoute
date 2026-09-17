@@ -24,7 +24,7 @@ test("manifest is valid and provides a maskable app icon", () => {
 
 test("main document exposes the offline form controls", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-  for (const id of ["waybillForm", "signatureCanvas", "authorisedSignature", "dispatchedSignature", "photoInput", "gpsButton", "connectionBadge", "settingsView", "lockScreen", "logoutButton", "importBackup", "settingsPhone", "pinForm", "waybillSearch", "settingsSignatureThumb", "pinSaveButton", "iosInstallHint", "settingsPinDetails"]) {
+  for (const id of ["waybillForm", "signatureCanvas", "authorisedSignature", "dispatchedSignature", "photoInput", "gpsButton", "connectionBadge", "settingsView", "lockScreen", "logoutButton", "importBackup", "settingsPhone", "pinForm", "waybillSearch", "settingsSignatureThumb", "pinSaveButton", "iosInstallHint", "settingsPinDetails", "padChecklist", "updateBanner", "backupNag", "syncForm", "reloadAppButton", "syncNowButton"]) {
     assert.match(html, new RegExp(`id=["']${id}["']`));
   }
 });
@@ -44,7 +44,10 @@ test("atmosphere depicts waybill sheets and a delivery route", () => {
 
 test("service worker cache is bumped with the shell", () => {
   const source = fs.readFileSync(path.join(root, "sw.js"), "utf8");
-  assert.match(source, /safiroute-shell-v18/);
+  assert.match(source, /safiroute-shell-v19/);
+  assert.match(source, /SKIP_WAITING/);
+  assert.match(source, /\.\/sync\.js/);
+  assert.match(source, /pathname\.includes\("\/api\/"\)/);
 });
 
 test("settings is a grouped list, not stacked panels", () => {
@@ -97,3 +100,29 @@ test("waybill dialog follows the Safisana paper pad", () => {
     assert.match(html, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
 });
+
+test("dialog is modal with a focus trap and restore", () => {
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  assert.match(html, /id=["']waybillDialog["'][^>]*aria-modal=["']true["']/);
+  const js = fs.readFileSync(path.join(root, "app.js"), "utf8");
+  assert.match(js, /function trapDialogFocus/);
+  assert.match(js, /restore\?\.focus/);
+  assert.doesNotMatch(js, /key === ["']Escape["']/);
+});
+
+test("new shell version can skipWaiting after a reload prompt", () => {
+  const js = fs.readFileSync(path.join(root, "app.js"), "utf8");
+  assert.match(js, /updateBanner/);
+  assert.match(js, /SKIP_WAITING/);
+  assert.match(js, /reloadAppButton/);
+});
+
+test("home nag and HQ sync controls are present", () => {
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  assert.match(html, /id=["']backupNag["']/);
+  assert.match(html, /id=["']settingsSyncUrl["']/);
+  assert.match(html, /api\/pwa\/ingest/);
+  assert.match(html, /Before Complete/);
+  assert.doesNotMatch(html, /<select[^>]*role/);
+});
+

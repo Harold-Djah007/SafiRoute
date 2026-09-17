@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyProfileDefaults, buildBackup, copyAsNew, createEmptyWaybill, createWaybillNumber, firstFilledItem, gpsErrorMessage, isMeaningfulDraft, mergeWaybills, normalizeItems, parseBackup, summarizeWaybills, validateWaybill } from "../model.js";
+import { applyProfileDefaults, buildBackup, buildIngestPayload, copyAsNew, createEmptyWaybill, createWaybillNumber, firstFilledItem, gpsErrorMessage, healthEndpoint, ingestEndpoint, isMeaningfulDraft, mergeWaybills, needsHqFlush, normalizeItems, padChecklist, parseBackup, requiredChecksComplete, shouldNagBackup, summarizeWaybills, syncStatusLabel, validateWaybill } from "../model.js";
 
 test("creates stable SafiRoute waybill number format", () => {
   assert.equal(createWaybillNumber(new Date("2026-09-15T10:00:00Z"), () => 0), "SR-20260915-1000");
@@ -159,4 +159,48 @@ test("backup files merge by id and keep the newer sheet", () => {
   assert.equal(merged.updated, 1);
   assert.equal(merged.waybills[0].number, "SR-1");
 });
+
+test("completed pads that are not on HQ count as awaiting sync", () => {
+  const summary = summarizeWaybills([
+    { status: "completed", syncStatus: "failed" },
+    { status: "completed", syncStatus: "synced" },
+    { status: "completed", syncStatus: "pending" }
+  ]);
+  assert.equal(summary.pending, 2);
+  assert.equal(summary.completed, 3);
+});
+
+test("pad checklist covers deliver to, lines, three signatures, GPS, and photo", () => {
+  const empty = padChecklist(createEmptyWaybill(new Date(), () => 0));
+  assert.deepEqual(empty.map((item) => item.id), ["deliverTo", "address", "line", "authorised", "dispatch", "customer", "gps", "photo"]);
+  assert.equal(empty.filter((item) => item.required && item.done).length, 0);
+  assert.equal(requiredChecksComplete(createEmptyWaybill(new Date(), () => 0)), false);
+});
+
+test("ingest payload maps the phone pad onto the Django body", () => {
+  const waybill = {
+    ...createEmptyWaybill(new Date("2026-09-17T10:00:00Z"), () => 0),
+    customerName: "Tema Market",
+    items: [{ description: "Fortifer Organic Fertilizer 50kg", qty: "20", remarks: "Dry" }],
+    authorisedBy: "Ama",
+    driverName: "Yaw"
+  };
+  const payload = buildIngestPayload(waybill, { operatorName: "Ama Boateng" });
+  assert.equal(payload.client_uuid, waybill.id);
+  assert.equal(payload.deliver_to, "Tema Market");
+  assert.equal(payload.items[0].product_name, "Fortifer Organic Fertilizer 50kg");
+  assert.equal(payload.operator_name, "Ama Boateng");
+  assert.equal(ingestEndpoint("http://127.0.0.1:8000/"), "http://127.0.0.1:8000/api/pwa/ingest/");
+  assert.equal(healthEndpoint("http://127.0.0.1:8000"), "http://127.0.0.1:8000/api/health/");
+  assert.equal(needsHqFlush({ status: "completed", syncStatus: "pending" }), true);
+  assert.equal(needsHqFlush({ status: "completed", syncStatus: "synced" }), false);
+  assert.equal(syncStatusLabel("synced"), "On HQ");
+});
+
+test("backup nag appears after five waybills with no export", () => {
+  assert.equal(shouldNagBackup(5, null), true);
+  assert.equal(shouldNagBackup(4, null), false);
+  assert.equal(shouldNagBackup(12, "2026-09-17T10:00:00.000Z"), false);
+});
+
 

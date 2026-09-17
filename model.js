@@ -219,9 +219,104 @@ export function summarizeWaybills(waybills) {
       summary.total += 1;
       if (item.status === "draft") summary.drafts += 1;
       if (item.status === "completed") summary.completed += 1;
-      if (item.syncStatus === "pending") summary.pending += 1;
+      if (item.status === "completed" && item.syncStatus !== "synced") summary.pending += 1;
       return summary;
     },
     { total: 0, drafts: 0, completed: 0, pending: 0 }
   );
+}
+
+export const BACKUP_NAG_THRESHOLD = 5;
+
+export function shouldNagBackup(total, lastBackupAt) {
+  return Number(total) >= BACKUP_NAG_THRESHOLD && !lastBackupAt;
+}
+
+export function padChecklist(waybill) {
+  const line = firstFilledItem(waybill);
+  const productName = waybill.productName?.trim() || line?.description?.trim() || "";
+  const quantity = Number(waybill.quantity || line?.qty);
+  const driverName = waybill.driverName?.trim() || waybill.dispatchedBy?.trim() || "";
+  return [
+    { id: "deliverTo", label: "Deliver to", done: Boolean(waybill.customerName?.trim()), required: true },
+    { id: "address", label: "Address", done: Boolean(waybill.deliveryAddress?.trim()), required: true },
+    { id: "line", label: "Product line", done: Boolean(productName) && Number.isFinite(quantity) && quantity > 0, required: true },
+    { id: "authorised", label: "Sales name and signature", done: Boolean(waybill.authorisedBy?.trim() && waybill.authorisedSignature), required: true },
+    { id: "dispatch", label: "Dispatch name, vehicle, signature", done: Boolean(driverName && waybill.vehicleNumber?.trim() && waybill.dispatchedSignature), required: true },
+    { id: "customer", label: "Customer name and signature", done: Boolean(waybill.receivedBy?.trim() && waybill.customerSignature), required: true },
+    { id: "gps", label: "GPS", done: waybill.latitude != null, required: false },
+    { id: "photo", label: "Photo", done: Boolean(waybill.photo), required: false }
+  ];
+}
+
+export function requiredChecksComplete(waybill) {
+  return padChecklist(waybill).filter((item) => item.required).every((item) => item.done);
+}
+
+export function syncStatusLabel(status) {
+  if (status === "synced") return "On HQ";
+  if (status === "pending") return "Waiting for HQ";
+  if (status === "syncing") return "Sending to HQ";
+  if (status === "failed") return "HQ did not accept";
+  return "Device only";
+}
+
+export function normalizeSyncUrl(value) {
+  return (value || "").trim().replace(/\/+$/, "");
+}
+
+export function ingestEndpoint(origin) {
+  const root = normalizeSyncUrl(origin);
+  return root ? `${root}/api/pwa/ingest/` : "";
+}
+
+export function healthEndpoint(origin) {
+  const root = normalizeSyncUrl(origin);
+  return root ? `${root}/api/health/` : "";
+}
+
+export function needsHqFlush(waybill) {
+  return waybill?.status === "completed" && waybill.syncStatus !== "synced";
+}
+
+export function buildIngestPayload(waybill, profile = {}) {
+  const items = (waybill.items || [])
+    .filter((item) => item.description?.trim() || item.qty)
+    .map((item) => ({
+      product_name: item.description || waybill.productName || "",
+      ordered_qty: item.qty || waybill.quantity || "0",
+      notes: item.remarks || ""
+    }));
+  if (!items.length && (waybill.productName || waybill.quantity)) {
+    items.push({
+      product_name: waybill.productName || "",
+      ordered_qty: waybill.quantity || "0",
+      notes: ""
+    });
+  }
+  return {
+    client_uuid: waybill.id,
+    phone_number: waybill.number,
+    operator_name: profile.operatorName || waybill.authorisedBy || "",
+    deliver_to: waybill.customerName || "",
+    delivery_contact_name: waybill.contactName || "",
+    contact_phone: waybill.customerPhone || "",
+    delivery_address_text: waybill.deliveryAddress || "",
+    document_date: waybill.documentDate || null,
+    authorised_by_name: waybill.authorisedBy || "",
+    authorised_remarks: waybill.authorisedRemarks || "",
+    dispatched_by_name: waybill.driverName || "",
+    vehicle_registration: waybill.vehicleNumber || "",
+    received_by: waybill.receivedBy || "",
+    items,
+    lat: waybill.latitude,
+    lng: waybill.longitude,
+    gps_accuracy: waybill.gpsAccuracy,
+    gps_captured_at: waybill.gpsCapturedAt || null,
+    authorised_signature: waybill.authorisedSignature,
+    dispatched_signature: waybill.dispatchedSignature,
+    customer_signature: waybill.customerSignature,
+    photo: waybill.photo,
+    device_timestamp: waybill.updatedAt
+  };
 }

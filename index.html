@@ -58,6 +58,11 @@
       <div class="grain"></div>
     </div>
 
+    <div id="updateBanner" class="shell-banner" hidden role="status">
+      <p>A new pad version is ready on this phone.</p>
+      <button type="button" id="reloadAppButton" class="primary">Reload</button>
+    </div>
+
     <section id="lockScreen" class="gate" hidden>
       <div class="gate-card">
         <div class="wordmark">
@@ -122,6 +127,14 @@
 
         <p class="howto">When a customer buys compost, Sales fills this pad. Then Sales, Dispatch, and the customer each sign their line — the same parties as the paper book.</p>
 
+        <div id="backupNag" class="home-nag" hidden role="status">
+          <p id="backupNagCopy">Waybills on this phone are not backed up yet. Export a copy before this browser is cleared.</p>
+          <div class="home-nag-actions">
+            <button type="button" id="backupNagExport" class="primary">Export backup</button>
+            <button type="button" id="backupNagDismiss" class="text-button">Not now</button>
+          </div>
+        </div>
+
         <section class="summary" aria-label="Waybill summary">
           <article><strong id="totalCount">0</strong><span>Total</span></article>
           <article><strong id="draftCount">0</strong><span>Drafts</span></article>
@@ -143,6 +156,7 @@
                 <button type="button" class="chip active" data-filter="all" aria-pressed="true">All</button>
                 <button type="button" class="chip" data-filter="draft" aria-pressed="false">Drafts</button>
                 <button type="button" class="chip" data-filter="completed" aria-pressed="false">Completed</button>
+                <button type="button" class="chip" data-filter="pending" aria-pressed="false">Awaiting HQ</button>
               </div>
             </div>
           </div>
@@ -324,6 +338,42 @@
         </section>
         <p class="settings-foot">Keep a copy off this phone before clearing browser data.</p>
 
+        <h2 class="settings-section">HQ sync</h2>
+        <form id="syncForm" class="settings-group" aria-label="HQ sync">
+          <details class="settings-disclose" id="settingsSyncDetails">
+            <summary><span class="settings-row">
+              <span class="settings-icon settings-icon-forest" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </span>
+              <span class="settings-copy"><span class="settings-title">HQ server</span></span>
+              <span id="settingsSyncUrlValue" class="settings-value">Not set</span>
+              <span class="settings-chevron" aria-hidden="true"></span>
+            </span></summary>
+            <div class="settings-editor">
+              <label>Django origin<input id="settingsSyncUrl" name="syncUrl" inputmode="url" autocomplete="url" placeholder="http://127.0.0.1:8000" /></label>
+              <p class="settings-hint">Completed pads POST to /api/pwa/ingest/. Leave blank to keep them on this phone. This is not a Safisana login.</p>
+            </div>
+          </details>
+          <div class="settings-row settings-row-commit">
+            <span class="settings-copy">
+              <span class="settings-title">Save HQ URL</span>
+              <span class="settings-subtitle">Used only to send completed pads</span>
+            </span>
+            <button class="settings-primary" type="submit">Save</button>
+          </div>
+          <button id="syncNowButton" type="button" class="settings-row">
+            <span class="settings-icon settings-icon-lime" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.8 12a7.2 7.2 0 0 1 12.8-4.4"/><path d="M19.2 7.6V4.8h-2.8"/><path d="M19.2 12a7.2 7.2 0 0 1-12.8 4.4"/><path d="M4.8 16.4v2.8h2.8"/></svg>
+            </span>
+            <span class="settings-copy">
+              <span class="settings-title">Send pending pads</span>
+              <span id="syncMeta" class="settings-subtitle">Never synced</span>
+            </span>
+          </button>
+          <p id="syncNotice" class="notice settings-notice" role="status" aria-live="polite" hidden></p>
+        </form>
+        <p class="settings-foot">A pad is marked On HQ only after Django accepts it. Offline pads stay pending and retry when this phone is online.</p>
+
         <h2 class="settings-section">App</h2>
         <section class="settings-group" aria-label="App">
           <button id="installButton" type="button" class="settings-row" hidden>
@@ -352,10 +402,10 @@
               <span class="settings-title">About</span>
               <span class="settings-subtitle">Safisana Ghana · Every delivery. Verified.</span>
             </span>
-            <span class="settings-value">v0.1</span>
+            <span class="settings-value">shell v19</span>
           </div>
         </section>
-        <p class="settings-foot">Compost sales waybill. Chrome may offer Install above. Server accounts are not on this phone yet.</p>
+        <p class="settings-foot">Compost sales waybill. Chrome may offer Install above. Name-only setup stays; HQ sync is a server URL, not a login.</p>
       </main>
 
       <nav id="appNav" class="app-nav" aria-label="App">
@@ -376,7 +426,7 @@
       </nav>
     </div>
 
-    <dialog id="waybillDialog" aria-labelledby="dialogTitle">
+    <dialog id="waybillDialog" aria-modal="true" aria-labelledby="dialogTitle">
       <form id="waybillForm" method="dialog">
         <div class="pad-toolbar">
           <p id="dialogTitle" class="pad-toolbar-title">New waybill</p>
@@ -485,13 +535,18 @@
           </div>
         </article>
 
+        <section id="padChecklistWrap" class="pad-checklist-wrap">
+          <p class="pad-checklist-title">Before Complete</p>
+          <ul id="padChecklist" class="pad-checklist" aria-live="polite"></ul>
+        </section>
+
         <div class="form-actions">
           <button type="button" id="deleteButton" class="danger" hidden>Delete</button>
           <button type="button" id="copyWaybillButton" class="secondary">Copy as new</button>
           <button type="button" id="printButton" class="secondary">Print</button>
           <span class="spacer"></span>
           <button type="button" id="saveDraftButton" class="secondary">Save draft</button>
-          <button type="button" id="completeButton" class="primary">Complete waybill</button>
+          <button type="button" id="completeButton" class="primary" aria-describedby="padChecklist">Complete waybill</button>
         </div>
       </form>
     </dialog>

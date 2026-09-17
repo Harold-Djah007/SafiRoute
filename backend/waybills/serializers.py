@@ -164,6 +164,7 @@ class WaybillSerializer(serializers.ModelSerializer):
             "gps_unavailable_reason",
             "customer_rep_name",
             "customer_rep_role",
+            "authorised_signature",
             "customer_signature",
             "driver_signature",
             "delivery_notes",

@@ -435,6 +435,84 @@ button { cursor: pointer; }
   backdrop-filter: blur(10px);
 }
 
+.shell-banner {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  padding: 10px 16px;
+  background: #ffc318;
+  color: #1a3a28;
+  font-weight: 800;
+}
+
+.shell-banner p { margin: 0; }
+.shell-banner .primary {
+  min-height: 40px;
+  background: #075b38;
+  color: #fff8e8;
+}
+
+.home-nag {
+  margin: 14px 0 0;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--pad-paper);
+  color: var(--pad-ink);
+  border: 1px solid #c8b992;
+  box-shadow: 0 1px 0 #fff8e8 inset;
+}
+
+.home-nag p { margin: 0 0 10px; font-weight: 700; }
+.home-nag-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+
+.pad-checklist-wrap {
+  margin: 0 16px 8px;
+  padding: 12px 14px;
+  background: var(--pad-paper);
+  border: 1px solid #c8b992;
+  border-radius: 6px;
+  box-shadow: 0 1px 0 #fff8e8 inset;
+}
+
+.pad-checklist-title {
+  margin: 0 0 8px;
+  font-family: var(--display);
+  font-size: .72rem;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--pad-muted);
+  font-weight: 800;
+}
+
+.pad-checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.pad-checklist li {
+  display: grid;
+  grid-template-columns: 1.2em 1fr;
+  gap: 8px;
+  align-items: start;
+  font-size: .84rem;
+  color: var(--pad-ink);
+}
+
+.pad-checklist .mark { font-weight: 900; color: #765b00; }
+.pad-checklist li.is-done .mark { color: #087c49; }
+.pad-checklist li.is-optional { color: var(--pad-muted); }
+#completeButton.is-ready { box-shadow: 0 0 0 3px rgba(255, 195, 24, .45); }
+[data-field="sync"].sync-failed { color: var(--danger); }
+[data-field="sync"].sync-ok { color: var(--green-800); }
+
 .eyebrow {
   margin: 0;
   font-size: .72rem;
@@ -614,6 +692,7 @@ dialog {
   border: 0;
   border-radius: 22px;
   background: #fff;
+  overflow: auto;
   box-shadow: 0 40px 100px rgba(0, 0, 0, .4);
 }
 
@@ -1185,7 +1264,11 @@ button.settings-row:focus-visible,
 #dataNotice[hidden],
 #settingsNotice[hidden],
 #pinNotice[hidden],
-#settingsSignatureThumb[hidden] {
+#settingsSignatureThumb[hidden],
+#updateBanner[hidden],
+#backupNag[hidden],
+#padChecklistWrap[hidden],
+#syncNotice[hidden] {
   display: none !important;
 }
 
@@ -1297,6 +1380,7 @@ html[data-dir="back"]::view-transition-new(page) {
   .form-actions .spacer { display: none; }
   .form-actions button { flex: 1 1 42%; }
   .form-actions .danger { flex-basis: 100%; }
+  .pad-checklist-wrap { margin: 0 10px 8px; }
   .gate-card { padding: 28px 20px 24px; }
   .sheet-a { width: 84px; top: 6%; left: 3%; }
   .sheet-b { width: 76px; top: 10%; right: 3%; }
@@ -1317,6 +1401,9 @@ html[data-dir="back"]::view-transition-new(page) {
   .form-actions,
   .pad-evidence,
   #formNotice,
+  .pad-checklist-wrap,
+  .shell-banner,
+  .home-nag,
   .add-line,
   .sign-hint,
   .sign-line-head [data-clear-sign],

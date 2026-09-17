@@ -1,5 +1,6 @@
-import { applyProfileDefaults, buildBackup, copyAsNew, createEmptyWaybill, firstFilledItem, gpsErrorMessage, isMeaningfulDraft, mergeWaybills, normalizeItems, parseBackup, summarizeWaybills, validateWaybill } from "./model.js";
+import { applyProfileDefaults, buildBackup, copyAsNew, createEmptyWaybill, firstFilledItem, gpsErrorMessage, isMeaningfulDraft, mergeWaybills, normalizeItems, padChecklist, parseBackup, shouldNagBackup, summarizeWaybills, syncStatusLabel, validateWaybill } from "./model.js";
 import { deleteWaybill, getProfile, getWaybill, hashPin, listWaybills, saveProfile, saveWaybill, saveWaybills } from "./storage.js";
+import { flushPending } from "./sync.js";
 
 const state = { active: null, persisted: false };
 const SESSION = "safiroute.session";
@@ -13,6 +14,9 @@ let listQuery = "";
 let installPrompt = null;
 let lastFocus = null;
 let gpsBusy = false;
+let syncBusy = false;
+const BACKUP_NAG_SESSION = "safiroute.backupNag";
+const FOCUSABLE = "a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), canvas[tabindex], [tabindex]:not([tabindex=\"-1\"])";
 const pads = {};
 
 function $(selector) { return document.querySelector(selector); }
@@ -98,6 +102,24 @@ function renderChrome() {
   $("#backupMeta").textContent = profile.lastBackupAt
     ? `Last backup ${formatDate(profile.lastBackupAt)}`
     : "Waybills live only in this browser";
+  $("#settingsSyncUrl").value = profile.syncUrl || "";
+  $("#settingsSyncUrlValue").textContent = profile.syncUrl || "Not set";
+  renderSyncMeta();
+}
+
+function renderSyncMeta() {
+  const meta = $("#syncMeta");
+  if (!meta || !profile) return;
+  if (!profile.syncUrl) {
+    meta.textContent = "No HQ URL. Completed pads stay on this phone.";
+    return;
+  }
+  const parts = [];
+  if (profile.lastSyncAt) parts.push(`Last try ${formatDate(profile.lastSyncAt)}`);
+  else parts.push("Never reached HQ");
+  if (profile.lastSyncError) parts.push(profile.lastSyncError);
+  else if (profile.lastSyncAccepted) parts.push(`${profile.lastSyncAccepted} accepted`);
+  meta.textContent = parts.join(" · ");
 }
 
 function closeSettingsEditors(root) {
@@ -131,6 +153,7 @@ async function enterApp() {
   renderChrome();
   setView("waybills", { instant: true });
   await refreshList();
+  await tryFlush("open");
 }
 
 function applyView(name) {
@@ -318,11 +341,14 @@ function startAtmosphere() {
   requestAnimationFrame(tick);
 }
 
-function setConnectionStatus() {
+function setConnectionStatus(pendingCount) {
   const online = navigator.onLine;
   const badge = $("#connectionBadge");
   if (!badge) return;
-  badge.textContent = online ? "● Online" : "● Offline — device saving active";
+  const pending = pendingCount ?? Number($("#pendingCount")?.textContent || 0);
+  if (!online) badge.textContent = "● Offline — device saving active";
+  else if (pending > 0) badge.textContent = `● Online · ${pending} waiting for HQ`;
+  else badge.textContent = "● Online";
   badge.classList.toggle("offline", !online);
 }
 
@@ -419,7 +445,120 @@ function populateForm(waybill, persisted = false) {
   photoPreview.hidden = !waybill.photo;
   if (waybill.photo) photoPreview.src = waybill.photo;
   clearErrors();
-  showNotice(waybill.status === "completed" ? "This compost sale is stored on this phone until server sync is connected." : "Fill the sale, then Sales, Dispatch, and the customer sign. Changes save on this phone.");
+  renderChecklist(waybill);
+  if (waybill.status === "completed") {
+    const syncNote = waybill.syncStatus === "synced"
+      ? `This sale is on HQ as ${waybill.serverNumber || waybill.number}.`
+      : waybill.syncError
+        ? `On this phone. HQ did not accept it yet: ${waybill.syncError}`
+        : "On this phone. It will POST to HQ when this phone is online and a server URL is set.";
+    showNotice(syncNote);
+  } else {
+    showNotice("Fill the sale, then Sales, Dispatch, and the customer sign. Changes save on this phone.");
+  }
+}
+
+function liveWaybill() {
+  if (!state.active) return null;
+  try {
+    return readForm();
+  } catch {
+    return state.active;
+  }
+}
+
+function renderChecklist(waybill = liveWaybill()) {
+  const wrap = $("#padChecklistWrap");
+  const list = $("#padChecklist");
+  if (!wrap || !list) return;
+  if (!waybill || waybill.status === "completed") {
+    wrap.hidden = true;
+    return;
+  }
+  wrap.hidden = false;
+  const items = padChecklist(waybill);
+  list.replaceChildren();
+  for (const item of items) {
+    const li = document.createElement("li");
+    li.className = item.done ? "is-done" : item.required ? "is-open" : "is-optional";
+    const mark = document.createElement("span");
+    mark.className = "mark";
+    mark.textContent = item.done ? "✓" : item.required ? "○" : "–";
+    mark.setAttribute("aria-hidden", "true");
+    const label = document.createElement("span");
+    label.textContent = item.required ? item.label : `${item.label} (optional)`;
+    li.append(mark, label);
+    list.append(li);
+  }
+  $("#completeButton")?.classList.toggle("is-ready", items.filter((item) => item.required).every((item) => item.done));
+}
+
+function isShown(element) {
+  if (!element || element.disabled) return false;
+  if (element.hidden || element.closest("[hidden]")) return false;
+  const style = window.getComputedStyle(element);
+  return style.display !== "none" && style.visibility !== "hidden";
+}
+
+function dialogFocusables() {
+  return [...dialog.querySelectorAll(FOCUSABLE)].filter(isShown);
+}
+
+function trapDialogFocus(event) {
+  if (!dialog.open || event.key !== "Tab") return;
+  const nodes = dialogFocusables();
+  if (!nodes.length) return;
+  const first = nodes[0];
+  const last = nodes[nodes.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+function renderBackupNag(total) {
+  const nag = $("#backupNag");
+  if (!nag) return;
+  const show = shouldNagBackup(total, profile?.lastBackupAt) && sessionStorage.getItem(BACKUP_NAG_SESSION) !== "hide";
+  nag.hidden = !show;
+  if (show) {
+    $("#backupNagCopy").textContent = `You have ${total} waybills on this phone only. Export a backup before this browser is cleared.`;
+  }
+}
+
+async function tryFlush(reason = "manual") {
+  if (!profile) return;
+  if (syncBusy) return;
+  syncBusy = true;
+  try {
+    const result = await flushPending({
+      profile,
+      onProgress: () => refreshList().catch(() => {})
+    });
+    if (result.profile) profile = result.profile;
+    renderChrome();
+    await refreshList();
+    if (reason === "manual") {
+      if (result.reason === "no-url") showSettingsNotice("#syncNotice", result.message);
+      else if (result.reason === "offline") showSettingsNotice("#syncNotice", result.message);
+      else if (result.failed) showSettingsNotice("#syncNotice", `${result.accepted} accepted, ${result.failed} not accepted. ${result.lastError || ""}`.trim());
+      else if (result.lastError) showSettingsNotice("#syncNotice", result.lastError);
+      else if (result.accepted) showSettingsNotice("#syncNotice", `${result.accepted} pad${result.accepted === 1 ? "" : "s"} accepted by HQ.`);
+      else showSettingsNotice("#syncNotice", "Nothing waiting for HQ.");
+    } else if (result.accepted || result.failed || result.lastError) {
+      const notice = result.failed || result.lastError
+        ? (result.lastError || "HQ did not accept every pad.")
+        : `${result.accepted} pad${result.accepted === 1 ? "" : "s"} accepted by HQ.`;
+      showSettingsNotice("#syncNotice", notice);
+    }
+  } catch (error) {
+    showSettingsNotice("#syncNotice", error.message);
+  } finally {
+    syncBusy = false;
+  }
 }
 
 function showNotice(message) {
@@ -463,16 +602,21 @@ async function persist(status) {
     const missingProof = waybill.latitude == null && !waybill.photo;
     const who = waybill.customerName || "this customer";
     const ok = confirm(missingProof
-      ? `Complete ${waybill.number} for ${who} without GPS or a photo?\n\nThe pad becomes read-only on this phone. Server sync is not connected yet.`
-      : `Complete ${waybill.number} for ${who}?\n\nSales, Dispatch, and the customer have signed. This pad becomes read-only on this phone until server sync is connected.`);
+      ? `Complete ${waybill.number} for ${who} without GPS or a photo?\n\nThe pad becomes read-only. If HQ is set and this phone is online, SafiRoute will POST it.`
+      : `Complete ${waybill.number} for ${who}?\n\nSales, Dispatch, and the customer have signed. This pad becomes read-only. If HQ is set and this phone is online, SafiRoute will POST it.`);
     if (!ok) return;
   }
   waybill.status = status;
   waybill.syncStatus = status === "completed" ? "pending" : "local_only";
+  if (status === "completed") {
+    waybill.syncError = "";
+    waybill.completedAt = waybill.updatedAt;
+  }
   await saveWaybill(waybill);
   state.active = waybill;
   dialog.close();
   await refreshList();
+  if (status === "completed") await tryFlush("complete");
 }
 
 function locationLabel(waybill) {
@@ -512,11 +656,12 @@ function compressPhoto(file) {
 }
 
 function openPad(waybill, persisted = false) {
-  lastFocus = document.activeElement;
+  lastFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   populateForm(waybill, persisted);
   dialog.showModal();
   const target = field("customerName");
   if (target && !target.disabled) target.focus();
+  else dialogFocusables()[0]?.focus();
 }
 
 async function autosaveDraft({ ignoreOpen = false } = {}) {
@@ -531,6 +676,7 @@ async function autosaveDraft({ ignoreOpen = false } = {}) {
   state.persisted = true;
   $("#deleteButton").hidden = false;
   showNotice(`Saved on this device at ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`);
+  renderChecklist(waybill);
   await refreshList();
 }
 
@@ -621,6 +767,7 @@ function attachPad(canvas, { lineWidth = 3, autosave = true } = {}) {
     drawing = false;
     shell.classList.remove("is-signing");
     if (autosave) scheduleAutosave();
+    renderChecklist();
   });
   canvas.addEventListener("pointercancel", () => {
     drawing = false;
@@ -629,6 +776,7 @@ function attachPad(canvas, { lineWidth = 3, autosave = true } = {}) {
   shell.querySelector("[data-clear-sign]")?.addEventListener("click", () => {
     clear(true);
     if (autosave) scheduleAutosave();
+    renderChecklist();
   });
   style();
 
@@ -658,7 +806,9 @@ async function refreshList() {
   $("#completedCount").textContent = summary.completed;
   $("#pendingCount").textContent = summary.pending;
   const visible = items.filter((item) => {
-    if (listFilter !== "all" && item.status !== listFilter) return false;
+    if (listFilter === "pending") {
+      if (!(item.status === "completed" && item.syncStatus !== "synced")) return false;
+    } else if (listFilter !== "all" && item.status !== listFilter) return false;
     if (!listQuery) return true;
     const haystack = [item.number, item.customerName, item.contactName, item.vehicleNumber, productSummary(item)].join(" ").toLowerCase();
     return haystack.includes(listQuery);
@@ -666,9 +816,11 @@ async function refreshList() {
   $("#emptyState").hidden = visible.length > 0;
   $("#emptyState h3").textContent = items.length ? "Nothing in this filter" : "No waybills yet";
   $("#emptyState p").textContent = items.length
-    ? (listQuery ? "No waybill matches that search." : "Try All to see every pad on this phone.")
+    ? (listQuery ? "No waybill matches that search." : listFilter === "pending" ? "No completed pads are waiting for HQ." : "Try All to see every pad on this phone.")
     : "Open a pad when a customer comes to buy compost. Sales, Dispatch, and the customer sign on this sheet.";
   $("#deviceStats").textContent = `${summary.total} waybill${summary.total === 1 ? "" : "s"}`;
+  renderBackupNag(summary.total);
+  setConnectionStatus(summary.pending);
   const list = $("#waybillList");
   list.replaceChildren();
   visible.forEach((item, index) => {
@@ -682,7 +834,12 @@ async function refreshList() {
     card.querySelector('[data-field="product"]').textContent = productSummary(item);
     card.querySelector('[data-field="vehicle"]').textContent = item.vehicleNumber || "Not assigned";
     card.querySelector('[data-field="updated"]').textContent = formatDate(item.updatedAt);
-    card.querySelector('[data-field="sync"]').textContent = item.syncStatus === "pending" ? "Pending server" : "Device only";
+    const sync = card.querySelector('[data-field="sync"]');
+    sync.textContent = item.syncStatus === "synced" && item.serverNumber
+      ? `On HQ · ${item.serverNumber}`
+      : syncStatusLabel(item.syncStatus);
+    sync.classList.toggle("sync-failed", item.syncStatus === "failed");
+    sync.classList.toggle("sync-ok", item.syncStatus === "synced");
     card.querySelector("[data-open]").addEventListener("click", async () => {
       openPad(await getWaybill(item.id), true);
     });
@@ -697,8 +854,10 @@ $("#newWaybillButton").addEventListener("click", () => {
   openPad(applyProfile(createEmptyWaybill()));
 });
 $("#closeDialogButton").addEventListener("click", () => dialog.close());
+dialog.addEventListener("keydown", trapDialogFocus);
 dialog.addEventListener("close", () => {
   const restore = lastFocus;
+  lastFocus = null;
   autosaveDraft({ ignoreOpen: true }).catch((error) => console.error(error)).finally(() => {
     restore?.focus?.();
   });
@@ -747,6 +906,7 @@ $("#gpsButton").addEventListener("click", () => {
       state.active.gpsAccuracy = position.coords.accuracy;
       state.active.gpsCapturedAt = new Date(position.timestamp).toISOString();
       status.textContent = locationLabel(state.active);
+      renderChecklist();
       scheduleAutosave();
     },
     (error) => {
@@ -774,6 +934,7 @@ $("#photoInput").addEventListener("change", async (event) => {
     photoPreview.src = dataUrl;
     photoPreview.hidden = false;
     showNotice("Photo saved on this phone.");
+    renderChecklist();
     scheduleAutosave();
   } catch (error) {
     showNotice(error.message);
@@ -795,6 +956,7 @@ $("#exportButton").addEventListener("click", async () => {
   await saveProfile(profile);
   renderChrome();
   showSettingsNotice("#dataNotice", "Backup file saved. Keep it off this phone.");
+  renderBackupNag((await listWaybills()).length);
 });
 
 $("#importButton").addEventListener("click", () => $("#importBackup").click());
@@ -828,8 +990,14 @@ $("#importBackup").addEventListener("change", async (event) => {
 });
 
 form.addEventListener("submit", (event) => event.preventDefault());
-form.addEventListener("input", scheduleAutosave);
-window.addEventListener("online", setConnectionStatus);
+form.addEventListener("input", () => {
+  renderChecklist();
+  scheduleAutosave();
+});
+window.addEventListener("online", () => {
+  setConnectionStatus();
+  tryFlush("online");
+});
 window.addEventListener("offline", setConnectionStatus);
 
 document.querySelectorAll(".nav-btn").forEach((button) => {
@@ -850,6 +1018,28 @@ $("#waybillSearch").addEventListener("input", async (event) => {
   listQuery = event.target.value.trim().toLowerCase();
   await refreshList();
 });
+
+$("#backupNagExport").addEventListener("click", () => $("#exportButton").click());
+$("#backupNagDismiss").addEventListener("click", () => {
+  sessionStorage.setItem(BACKUP_NAG_SESSION, "hide");
+  $("#backupNag").hidden = true;
+});
+
+$("#syncForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  profile = {
+    ...profile,
+    syncUrl: $("#settingsSyncUrl").value.trim().replace(/\/+$/, ""),
+    updatedAt: new Date().toISOString()
+  };
+  await saveProfile(profile);
+  renderChrome();
+  closeSettingsEditors($("#syncForm"));
+  showSettingsNotice("#syncNotice", profile.syncUrl
+    ? `HQ URL saved. Completed pads will POST to ${profile.syncUrl}/api/pwa/ingest/.`
+    : "HQ URL cleared. Completed pads stay pending on this phone.");
+});
+$("#syncNowButton").addEventListener("click", () => tryFlush("manual"));
 
 document.querySelectorAll("#settingsView details.settings-disclose").forEach((block) => {
   block.addEventListener("toggle", () => {
@@ -872,6 +1062,9 @@ $("#setupForm").addEventListener("submit", async (event) => {
     authorisedSignature: null,
     pinHash: null,
     lastBackupAt: null,
+    syncUrl: "",
+    lastSyncAt: null,
+    lastSyncError: "",
     updatedAt: new Date().toISOString()
   };
   await saveProfile(profile);
@@ -978,5 +1171,23 @@ if (!profile?.operatorName) {
 }
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js").catch((error) => console.error("Service worker registration failed", error));
+  navigator.serviceWorker.register("./sw.js").then((registration) => {
+    const offerReload = () => {
+      const banner = $("#updateBanner");
+      if (banner) banner.hidden = false;
+    };
+    if (registration.waiting && navigator.serviceWorker.controller) offerReload();
+    registration.addEventListener("updatefound", () => {
+      const worker = registration.installing;
+      if (!worker) return;
+      worker.addEventListener("statechange", () => {
+        if (worker.state === "installed" && navigator.serviceWorker.controller) offerReload();
+      });
+    });
+  }).catch((error) => console.error("Service worker registration failed", error));
+  $("#reloadAppButton")?.addEventListener("click", async () => {
+    const registration = await navigator.serviceWorker.getRegistration();
+    registration?.waiting?.postMessage("SKIP_WAITING");
+    window.location.reload();
+  });
 }
