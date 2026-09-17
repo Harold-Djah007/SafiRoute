@@ -16,22 +16,22 @@ Repository: https://github.com/Harold-Djah007/SafiRoute
 | `docs/` | Project blueprint and [recovery runbook](docs/RECOVERY.md) |
 | `assets/` | SafiRoute logo and app icon |
 | `scripts/` | One-command API and web starters |
-| `.github/workflows/ci.yml` | Django tests + Playwright (Pixel-sized and desktop Chromium) |
+| `.github/workflows/ci.yml` | Dependency audits, Django/PostgreSQL gates, Next.js build + Playwright (Pixel-sized and desktop Chromium) |
 
 ## Test run (local)
 
 You need **Python 3.12, 3.13, or 3.14** and **Node 20+**. Flutter is optional.
 
-**Windows (PowerShell)** — you already cloned the repo. Recreate the venv after pulling this branch, because Python 3.14 needs current Pillow wheels:
+**Windows (PowerShell)** — use the production-ready `main` branch:
 
 ```powershell
 cd $HOME\SafiRoute
-git pull
-git checkout cursor/safiroute-mvp-cd9e
+git switch main
+git pull --ff-only
 
 cd backend
-deactivate
-Remove-Item -Recurse -Force .\venv
+deactivate 2>$null
+if (Test-Path .\venv) { Remove-Item -Recurse -Force .\venv }
 py -3 -m venv venv
 .\venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
@@ -43,14 +43,15 @@ python manage.py runserver 127.0.0.1:8877
 
 Windows often blocks ports 8000 and 8080. **8877** is the SafiRoute local API port. Keep this window open.
 
-Then in a **second** PowerShell window (stop the old `npm run dev` first with Ctrl+C):
+Then in a **second** PowerShell window (stop any old `npm run dev` first with Ctrl+C):
 
 ```powershell
 cd $HOME\SafiRoute
-git pull
+git switch main
+git pull --ff-only
 
 cd frontend
-npm install
+npm ci
 @"
 NEXT_PUBLIC_API_URL=/api
 NEXT_PUBLIC_API_ORIGIN=http://127.0.0.1:8877
@@ -64,10 +65,15 @@ Open http://localhost:3000
 **macOS / Linux**
 
 ```bash
+cd "$HOME/SafiRoute"
+git switch main
+git pull --ff-only
+
 cd backend
 python3 -m venv venv
 # If that fails on Ubuntu: sudo apt install python3.12-venv
 source venv/bin/activate
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py seed_demo
@@ -77,8 +83,8 @@ python manage.py runserver 127.0.0.1:8877
 **Terminal 2 — Web app**
 
 ```bash
-cd frontend
-npm install
+cd "$HOME/SafiRoute/frontend"
+npm ci
 cp .env.example .env.local
 npm run dev
 ```
@@ -152,6 +158,8 @@ python manage.py test
 
 Production (`DJANGO_ENV=production` or `DEBUG=False`) **refuses SQLite**, wildcard `ALLOWED_HOSTS`, and the demo secret. Set PostgreSQL via `DB_ENGINE=django.db.backends.postgresql` and `DB_NAME` / `DB_USER` / `DB_PASSWORD` / `DB_HOST`.
 
+For internet-facing production, serve every application subdomain over HTTPS before enabling HSTS include-subdomains/preload. Configure `SECURE_HSTS_SECONDS`, `SECURE_HSTS_INCLUDE_SUBDOMAINS`, `SECURE_HSTS_PRELOAD`, secure cookies and `TRUST_X_FORWARDED_PROTO` to match the reverse proxy or Azure ingress.
+
 Optional but supported when fully configured:
 
 - **Azure Blob** media — `AZURE_ACCOUNT_NAME` plus `AZURE_ACCOUNT_KEY` or `AZURE_CONNECTION_STRING`, and `AZURE_CONTAINER`. Account name alone does not enable Blob.
@@ -170,7 +178,7 @@ python manage.py check_pdf_integrity
 
 Browser login uses Django sessions (HttpOnly cookie) plus CSRF; API tokens remain available for scripts. Demo password `safiroute` exists only when `DEBUG=True` (`seed_demo` is disabled in production).
 
-CI (`.github/workflows/ci.yml`) runs Django tests and Playwright against Pixel-sized and desktop Chromium. Playwright browsers are installed in GitHub Actions; a restricted local workspace may time out downloading Chrome — that is not a reason to skip CI.
+CI (`.github/workflows/ci.yml`) blocks regressions with Python and Node dependency audits, Django tests, production deployment checks and the full Django test suite against PostgreSQL, plus a Next.js production build and Pixel-sized/desktop Chromium offline-PWA tests.
 
 ## Architecture
 
