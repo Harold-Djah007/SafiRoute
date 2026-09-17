@@ -748,7 +748,7 @@ function attachPad(canvas, { lineWidth = 3, autosave = true } = {}) {
 
   canvas.addEventListener("pointerdown", (event) => {
     drawing = true;
-    canvas.setPointerCapture(event.pointerId);
+    try { canvas.setPointerCapture(event.pointerId); } catch {}
     shell.classList.add("is-signing");
     const start = point(event);
     ctx.beginPath();

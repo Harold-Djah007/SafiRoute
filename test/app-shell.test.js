@@ -44,7 +44,7 @@ test("atmosphere depicts waybill sheets and a delivery route", () => {
 
 test("service worker cache is bumped with the shell", () => {
   const source = fs.readFileSync(path.join(root, "sw.js"), "utf8");
-  assert.match(source, /safiroute-shell-v19/);
+  assert.match(source, /safiroute-shell-v20/);
   assert.match(source, /SKIP_WAITING/);
   assert.match(source, /\.\/sync\.js/);
   assert.match(source, /pathname\.includes\("\/api\/"\)/);
