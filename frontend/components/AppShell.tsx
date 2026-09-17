@@ -81,8 +81,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <button
             className="mt-3 text-gold-400 underline-offset-4 hover:underline"
             onClick={() => {
-              clearSession();
-              router.replace("/");
+              void logoutRequest().then(() => router.replace("/"));
             }}
           >
             Sign out

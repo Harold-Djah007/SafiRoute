@@ -100,8 +100,7 @@ function FieldShellInner({ children }: { children: React.ReactNode }) {
           type="button"
           className="text-cream/80"
           onClick={() => {
-            clearSession();
-            router.replace("/");
+            void logoutRequest().then(() => router.replace("/"));
           }}
         >
           Sign out
