@@ -2,6 +2,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from cryptography.fernet import Fernet
+from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
 from django.core.files.base import ContentFile
 from django.core.management import call_command
@@ -85,10 +86,11 @@ class ProductionGuardTests(SimpleTestCase):
 
 class SessionAuthTests(TestCase):
     def setUp(self):
+        cache.clear()
         self.user = User.objects.create_user("sales", password="safiroute", role=User.Role.SALES, first_name="Ama")
         self.client = APIClient()
 
-    def test_login_creates_django_session_without_authorization_header(self):
+    def test_login_creates_django_session_without_exposing_api_token(self):
         res = self.client.post(
             "/api/auth/login/",
             {"username": "sales", "password": "safiroute"},
@@ -96,7 +98,7 @@ class SessionAuthTests(TestCase):
         )
         self.assertEqual(res.status_code, 200, res.data)
         self.assertTrue(res.data["session"])
-        self.assertIn("token", res.data)
+        self.assertNotIn("token", res.data)
         self.client.credentials()
         me = self.client.get("/api/me/")
         self.assertEqual(me.status_code, 200, me.data)
@@ -112,6 +114,45 @@ class SessionAuthTests(TestCase):
         self.assertEqual(out.status_code, 200)
         me = self.client.get("/api/me/")
         self.assertEqual(me.status_code, 403)
+
+    def test_session_login_is_rate_limited(self):
+        for _ in range(10):
+            res = self.client.post(
+                "/api/auth/login/",
+                {"username": "sales", "password": "wrong-password"},
+                format="json",
+            )
+            self.assertEqual(res.status_code, 400)
+        blocked = self.client.post(
+            "/api/auth/login/",
+            {"username": "sales", "password": "wrong-password"},
+            format="json",
+        )
+        self.assertEqual(blocked.status_code, 429)
+
+    def test_api_token_login_is_available_and_rate_limited(self):
+        token_res = self.client.post(
+            "/api/auth/token/",
+            {"username": "sales", "password": "safiroute"},
+            format="json",
+        )
+        self.assertEqual(token_res.status_code, 200, token_res.data)
+        self.assertTrue(token_res.data["token"])
+
+        cache.clear()
+        for _ in range(10):
+            res = self.client.post(
+                "/api/auth/token/",
+                {"username": "sales", "password": "wrong-password"},
+                format="json",
+            )
+            self.assertEqual(res.status_code, 400)
+        blocked = self.client.post(
+            "/api/auth/token/",
+            {"username": "sales", "password": "wrong-password"},
+            format="json",
+        )
+        self.assertEqual(blocked.status_code, 429)
 
 
 class FingerprintTests(TestCase):
