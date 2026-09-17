@@ -59,6 +59,7 @@ test.describe("installable field PWA", () => {
 
     await expect(page.getByRole("heading", { name: "Today's runs" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Download for offline" })).toBeVisible();
-    await expect(page.getByText(/Offline mode|Could not reach SafiRoute|No signal/)).toBeVisible();
+    await expect(page.getByText("No signal — deliveries save on this phone and send when 4G returns.")).toBeVisible();
+    await expect(page.getByText("Could not reach SafiRoute. Showing last downloaded runs.")).toBeVisible();
   });
 });
