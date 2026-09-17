@@ -1,38 +1,54 @@
 import { expect, test } from "@playwright/test";
 
-const FIELD_USER = {
+const SALES_USER = {
   id: 42,
-  username: "driver-ci",
-  first_name: "Field",
-  last_name: "Driver",
-  full_name: "Field Driver",
+  username: "sales-ci",
+  first_name: "Ama",
+  last_name: "Mensah",
+  full_name: "Ama Mensah",
   email: "",
-  role: "driver",
-  role_display: "Driver",
+  role: "sales",
+  role_display: "Sales Officer",
   phone: "",
-  employee_id: "CI-DRIVER",
-  branch: "Accra",
+  employee_id: "CI-SALES",
+  branch: "Ashaiman Plant",
 };
 
-test.describe("installable field PWA", () => {
-  test("manifest is a standalone field app", async ({ request }) => {
+test.describe("installable SafiRoute Sales PWA", () => {
+  test("manifest is a standalone Sales waybill app", async ({ request }) => {
     const res = await request.get("/manifest.json");
     expect(res.ok()).toBeTruthy();
     const manifest = await res.json();
     expect(manifest.display).toBe("standalone");
-    expect(manifest.start_url).toContain("/field");
+    expect(manifest.start_url).toBe("/field");
+    expect(manifest.name).toContain("Sales Waybill");
     expect(manifest.theme_color).toBe("#0F5C2E");
     expect(manifest.icons?.length).toBeGreaterThan(0);
   });
 
-  test("sign-in shell renders without Django", async ({ page }) => {
+  test("sign-in shell presents Sales as the mobile experience", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
     await expect(page.getByLabel("Username")).toBeVisible();
-    await expect(page.getByRole("button", { name: /Enter dashboard|Open field app/ })).toBeVisible();
+    await expect(page.getByText("Sales — mobile waybill pad")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Open Sales waybills" })).toBeVisible();
   });
 
-  test("service worker keeps an authenticated field shell after going offline", async ({ page, context }) => {
+  test("Sales waybill home and animation render without Django", async ({ page }) => {
+    await page.goto("/");
+    await page.evaluate((user) => {
+      sessionStorage.setItem("safiroute_user", JSON.stringify(user));
+    }, SALES_USER);
+
+    await page.goto("/field");
+    await expect(page.getByRole("link", { name: /New waybill Start a customer delivery/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Saved waybills" })).toBeVisible();
+    await expect(page.getByText("Sale → signed → verified")).toBeVisible();
+    await expect(page.getByText("Your digital pad is ready")).toBeVisible();
+    await expect(page.getByText("Today's runs")).toHaveCount(0);
+  });
+
+  test("service worker keeps the Sales waybill shell available offline", async ({ page, context }) => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
 
@@ -48,18 +64,16 @@ test.describe("installable field PWA", () => {
 
     await page.evaluate((user) => {
       sessionStorage.setItem("safiroute_user", JSON.stringify(user));
-    }, FIELD_USER);
+    }, SALES_USER);
 
     await page.goto("/field");
-    await expect(page.getByRole("heading", { name: "Today's runs" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Download for offline" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Saved waybills" })).toBeVisible();
 
     await context.setOffline(true);
     await page.reload({ waitUntil: "domcontentloaded" });
 
-    await expect(page.getByRole("heading", { name: "Today's runs" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Download for offline" })).toBeVisible();
-    await expect(page.getByText("No signal — deliveries save on this phone and send when 4G returns.")).toBeVisible();
-    await expect(page.getByText("Could not reach SafiRoute. Showing last downloaded runs.")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Saved waybills" })).toBeVisible();
+    await expect(page.getByText("No signal — keep working. SafiRoute is saving this waybill on the phone.")).toBeVisible();
+    await expect(page.getByRole("link", { name: /New waybill Start a customer delivery/ })).toBeVisible();
   });
 });
