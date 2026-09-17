@@ -1,211 +1,190 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { StatusPill } from "@/components/AppShell";
-import { type Waybill } from "@/lib/api";
-import { mapsHref, telHref } from "@/lib/format";
+import { useEffect, useMemo, useState } from "react";
+import { WaybillJourney } from "@/components/WaybillJourney";
 import {
-  cacheWaybill,
-  downloadFieldPack,
-  flushQueue,
-  listCachedWaybills,
-  listQueue,
-  removeQueueItem,
-  submitDelivery,
-  type QueueItem,
-} from "@/lib/offline";
+  flushSalesWaybills,
+  listSalesWaybills,
+  type SalesWaybill,
+} from "@/lib/sales-mobile";
 
-const ACTIVE = new Set(["loaded", "dispatched", "in_transit"]);
+function greeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
 
-function FieldHomeInner() {
-  const search = useSearchParams();
-  const pathname = usePathname();
-  const showQueue = search.get("tab") === "sync" || pathname.endsWith("/queue");
-  const [rows, setRows] = useState<Waybill[]>([]);
-  const [queue, setQueue] = useState<QueueItem[]>([]);
-  const [offline, setOffline] = useState(false);
-  const [note, setNote] = useState("");
-  const [busy, setBusy] = useState("");
-
-  const loadLocal = useCallback(async () => {
-    const cached = await listCachedWaybills();
-    setRows(cached.filter((row) => ACTIVE.has(row.status)));
-    setQueue(await listQueue());
-  }, []);
-
-  async function download() {
-    setBusy("download");
-    setNote("");
-    await loadLocal();
-    try {
-      const pack = await downloadFieldPack();
-      setRows(pack.waybills.filter((row) => ACTIVE.has(row.status)));
-      setOffline(false);
-      setNote(`${pack.waybills.length} assignment${pack.waybills.length === 1 ? "" : "s"} saved on this phone.`);
-    } catch {
-      setOffline(true);
-      await loadLocal();
-      setNote("Could not reach SafiRoute. Showing last downloaded runs.");
-    } finally {
-      setBusy("");
-    }
-  }
-
-  useEffect(() => {
-    download();
-    const on = () => {
-      setOffline(false);
-      flushQueue().then(loadLocal);
-    };
-    const off = () => setOffline(true);
-    window.addEventListener("online", on);
-    window.addEventListener("offline", off);
-    return () => {
-      window.removeEventListener("online", on);
-      window.removeEventListener("offline", off);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const queuedIds = useMemo(() => new Set(queue.map((item) => item.waybillId)), [queue]);
-
-  return (
-    <>
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold-600">Driver</p>
-      <h1 className="font-display text-4xl text-forest-800">Today&apos;s runs</h1>
-      <p className="mt-2 text-base text-ink/75">
-        Download before you leave coverage. Sign, photo, and GPS still work offline — they send when 4G comes back.
-      </p>
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          disabled={!!busy}
-          onClick={download}
-          className="tap rounded-2xl bg-forest-800 px-3 py-3 text-sm font-semibold text-cream disabled:opacity-60"
-        >
-          {busy === "download" ? "Saving…" : "Download for offline"}
-        </button>
-        <button
-          type="button"
-          disabled={!!busy || !queue.length}
-          onClick={async () => {
-            setBusy("sync");
-            const result = await flushQueue();
-            await loadLocal();
-            setNote(result.sent ? `${result.sent} sent` : result.failed ? "Still waiting for signal" : "Queue empty");
-            setBusy("");
-          }}
-          className="tap rounded-2xl border-2 border-forest-800 px-3 py-3 text-sm font-semibold text-forest-800 disabled:opacity-40"
-        >
-          {busy === "sync" ? "Sending…" : `Send queue (${queue.length})`}
-        </button>
-      </div>
-      {(offline || note) && (
-        <p className={`mt-3 rounded-xl px-3 py-2 text-sm ${offline ? "bg-amber-100 text-amber-950" : "bg-emerald-50 text-forest-800"}`}>
-          {note || "Offline mode"}
-        </p>
-      )}
-
-      {showQueue || queue.length ? (
-        <section className="mt-6">
-          <h2 className="font-display text-2xl text-forest-800">Waiting to send</h2>
-          {!queue.length && <p className="mt-2 text-sm text-ink/60">Nothing queued. Completions send immediately when you have signal.</p>}
-          <div className="mt-3 space-y-2">
-            {queue.map((item) => (
-              <div key={item.waybillId} className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
-                <p className="font-display text-xl">{item.waybillNumber}</p>
-                <p className="text-sm">{item.customerName}</p>
-                <p className="mt-1 text-xs text-ink/60">Stored {new Date(item.queuedAt).toLocaleTimeString("en-GB")}</p>
-                <div className="mt-3 flex gap-2">
-                  <button
-                    type="button"
-                    className="tap rounded-xl bg-forest-800 px-3 py-2 text-sm font-semibold text-cream"
-                    onClick={async () => {
-                      try {
-                        await submitDelivery(item);
-                        await loadLocal();
-                      } catch {
-                        setNote("Still offline — kept on this phone.");
-                      }
-                    }}
-                  >
-                    Retry now
-                  </button>
-                  <button
-                    type="button"
-                    className="tap rounded-xl px-3 py-2 text-sm underline"
-                    onClick={async () => {
-                      await removeQueueItem(item.waybillId);
-                      await loadLocal();
-                    }}
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      <div className="mt-6 space-y-3">
-        {rows.map((row) => {
-          const address = row.delivery_address_text || row.customer_detail?.delivery_address;
-          const phone = row.contact_phone || row.customer_detail?.phone;
-          return (
-            <article key={row.id} className="ticket rounded-3xl bg-paper p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-display text-2xl text-forest-800">{row.waybill_number}</p>
-                  <p className="text-base font-medium">{row.deliver_to || row.customer_detail?.name}</p>
-                  <p className="text-sm text-ink/70">{address}</p>
-                </div>
-                <StatusPill status={row.status} label={row.status_display} />
-              </div>
-              {queuedIds.has(row.id) && (
-                <p className="mt-2 rounded-lg bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-950">
-                  Proof saved on phone — waiting for 4G
-                </p>
-              )}
-              <div className="mt-3 flex flex-wrap gap-2">
-                {phone && (
-                  <a className="tap rounded-xl bg-cream px-3 py-2 text-sm font-semibold" href={telHref(phone)}>
-                    Call
-                  </a>
-                )}
-                {address && (
-                  <a className="tap rounded-xl bg-cream px-3 py-2 text-sm font-semibold" href={mapsHref(address)} target="_blank" rel="noreferrer">
-                    Map
-                  </a>
-                )}
-                <Link
-                  href={`/field/run/${row.id}`}
-                  className="tap ml-auto rounded-xl bg-gold-500 px-4 py-2 text-sm font-semibold text-forest-950"
-                  onClick={() => cacheWaybill(row)}
-                >
-                  Open run
-                </Link>
-              </div>
-            </article>
-          );
-        })}
-        {!rows.length && busy !== "download" && (
-          <div className="rounded-3xl border border-dashed border-forest-800/20 p-6 text-center">
-            <p className="font-display text-2xl text-forest-800">No active runs</p>
-            <p className="mt-2 text-sm text-ink/70">When warehouse dispatches a waybill to you, tap Download for offline before you leave the plant.</p>
-          </div>
-        )}
-      </div>
-    </>
-  );
+function syncLabel(item: SalesWaybill) {
+  if (item.syncStatus === "synced") return item.serverNumber ? `On HQ · ${item.serverNumber}` : "On HQ";
+  if (item.syncStatus === "syncing") return "Sending to HQ…";
+  if (item.syncStatus === "failed") return "Waiting for HQ";
+  if (item.status === "completed") return "Waiting for HQ";
+  return "Saved on phone";
 }
 
 export default function FieldHomePage() {
+  const [items, setItems] = useState<SalesWaybill[]>([]);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<"all" | "draft" | "completed" | "pending">("all");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+
+  async function refresh() {
+    setItems(await listSalesWaybills());
+  }
+
+  useEffect(() => {
+    void refresh();
+    const saved = () => void refresh();
+    window.addEventListener("safiroute:saved", saved);
+    return () => window.removeEventListener("safiroute:saved", saved);
+  }, []);
+
+  const summary = useMemo(() => {
+    return items.reduce(
+      (acc, item) => {
+        acc.total += 1;
+        if (item.status === "draft") acc.drafts += 1;
+        if (item.status === "completed") acc.completed += 1;
+        if (item.status === "completed" && item.syncStatus !== "synced") acc.pending += 1;
+        return acc;
+      },
+      { total: 0, drafts: 0, completed: 0, pending: 0 }
+    );
+  }, [items]);
+
+  const visible = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return items.filter((item) => {
+      if (filter === "draft" && item.status !== "draft") return false;
+      if (filter === "completed" && item.status !== "completed") return false;
+      if (filter === "pending" && !(item.status === "completed" && item.syncStatus !== "synced")) return false;
+      if (!needle) return true;
+      return [item.localNumber, item.serverNumber, item.deliverTo, item.contactName, item.vehicleNumber]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(needle);
+    });
+  }, [items, filter, query]);
+
+  async function syncNow() {
+    setBusy(true);
+    setNote("");
+    const result = await flushSalesWaybills();
+    await refresh();
+    if (result.sent) setNote(`${result.sent} completed waybill${result.sent === 1 ? "" : "s"} sent to HQ.`);
+    else if (result.failed) setNote("HQ is not reachable yet. Your completed waybills are still safe on this phone.");
+    else setNote("Everything is already up to date.");
+    setBusy(false);
+  }
+
   return (
-    <Suspense fallback={<p>Opening runs…</p>}>
-      <FieldHomeInner />
-    </Suspense>
+    <div className="sales-home">
+      <section className="sales-home-intro">
+        <p className="sales-eyebrow">SAFISANA GHANA · SALES</p>
+        <h1>{greeting()}</h1>
+        <p className="sales-home-lede">
+          Create the same waybill your team knows from the paper pad — only faster, signed, geo-stamped and safe offline.
+        </p>
+      </section>
+
+      <WaybillJourney />
+
+      <Link href="/field/new" className="sales-new-waybill-cta">
+        <span className="sales-new-waybill-icon" aria-hidden="true">＋</span>
+        <span>
+          <strong>New waybill</strong>
+          <small>Start a customer delivery</small>
+        </span>
+        <b aria-hidden="true">›</b>
+      </Link>
+
+      <section className="sales-summary-grid" aria-label="Waybill summary">
+        <button type="button" className={filter === "all" ? "active" : ""} onClick={() => setFilter("all")}>
+          <strong>{summary.total}</strong><span>Total</span>
+        </button>
+        <button type="button" className={filter === "draft" ? "active" : ""} onClick={() => setFilter("draft")}>
+          <strong>{summary.drafts}</strong><span>Drafts</span>
+        </button>
+        <button type="button" className={filter === "completed" ? "active" : ""} onClick={() => setFilter("completed")}>
+          <strong>{summary.completed}</strong><span>Completed</span>
+        </button>
+        <button type="button" className={filter === "pending" ? "active" : ""} onClick={() => setFilter("pending")}>
+          <strong>{summary.pending}</strong><span>Waiting HQ</span>
+        </button>
+      </section>
+
+      {summary.pending > 0 && (
+        <section className="sales-sync-card">
+          <div>
+            <p className="sales-eyebrow">SYNC</p>
+            <h2>{summary.pending} waiting for HQ</h2>
+            <p>They are already safe on this phone. Send them now if you have signal.</p>
+          </div>
+          <button type="button" onClick={syncNow} disabled={busy}>
+            {busy ? "Sending…" : "Send now"}
+          </button>
+        </section>
+      )}
+      {note && <p className="sales-home-note">{note}</p>}
+
+      <section className="sales-waybill-section">
+        <div className="sales-section-heading">
+          <div>
+            <p className="sales-eyebrow">ON THIS PHONE</p>
+            <h2>Saved waybills</h2>
+          </div>
+          <span>{visible.length}</span>
+        </div>
+        <label className="sales-search">
+          <span aria-hidden="true">⌕</span>
+          <input
+            type="search"
+            placeholder="Search customer or waybill"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+
+        <div className="sales-filter-chips" role="group" aria-label="Filter waybills">
+          {(["all", "draft", "completed", "pending"] as const).map((value) => (
+            <button key={value} type="button" className={filter === value ? "active" : ""} onClick={() => setFilter(value)}>
+              {value === "all" ? "All" : value === "draft" ? "Drafts" : value === "completed" ? "Completed" : "Waiting HQ"}
+            </button>
+          ))}
+        </div>
+
+        <div className="sales-waybill-list">
+          {visible.map((item) => (
+            <Link key={item.id} href={`/field/waybill/${item.id}`} className="sales-waybill-card">
+              <div className="sales-waybill-card-top">
+                <span className={`sales-waybill-state ${item.status === "completed" ? "is-complete" : "is-draft"}`}>
+                  {item.status === "completed" ? "✓ Completed" : "Draft"}
+                </span>
+                <span className={`sales-waybill-sync is-${item.syncStatus}`}>{syncLabel(item)}</span>
+              </div>
+              <h3>{item.deliverTo || "Customer not entered"}</h3>
+              <p>{item.serverNumber || item.localNumber}</p>
+              <div className="sales-waybill-meta">
+                <span>{new Date(item.updatedAt).toLocaleDateString("en-GH", { day: "2-digit", month: "short" })}</span>
+                {item.vehicleNumber && <span>{item.vehicleNumber}</span>}
+                <b aria-hidden="true">›</b>
+              </div>
+            </Link>
+          ))}
+          {!visible.length && (
+            <div className="sales-empty-state">
+              <div className="sales-empty-paper" aria-hidden="true"><span>✓</span></div>
+              <h3>{items.length ? "Nothing in this view" : "Your digital pad is ready"}</h3>
+              <p>{items.length ? "Try another filter or search." : "Tap New waybill when the next customer is ready."}</p>
+              {!items.length && <Link href="/field/new">Create first waybill</Link>}
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
   );
 }
