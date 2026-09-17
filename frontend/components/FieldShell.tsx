@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { logoutRequest, readUser, type User } from "@/lib/api";
+import { bootstrapSession, logoutRequest, type User } from "@/lib/api";
 import {
   flushSalesWaybills,
   getSalesMobileSettings,
@@ -25,6 +25,7 @@ export function FieldShell({ children }: { children: React.ReactNode }) {
   const [locked, setLocked] = useState(false);
   const [pin, setPin] = useState("");
   const [pinError, setPinError] = useState("");
+  const [opening, setOpening] = useState(true);
 
   async function refreshStatus() {
     try {
@@ -40,18 +41,23 @@ export function FieldShell({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    const current = readUser();
-    if (!current) {
-      router.replace("/");
-      return;
-    }
-    if (current.role !== "sales") {
-      router.replace("/dashboard");
-      return;
-    }
-    setUser(current);
+    let active = true;
     setOnline(navigator.onLine);
-    void refreshStatus();
+    void bootstrapSession().then((current) => {
+      if (!active) return;
+      if (!current) {
+        setOpening(false);
+        router.replace("/");
+        return;
+      }
+      if (current.role !== "sales") {
+        setOpening(false);
+        router.replace("/dashboard");
+        return;
+      }
+      setUser(current);
+      void refreshStatus().finally(() => setOpening(false));
+    });
 
     const onOnline = () => {
       setOnline(true);
@@ -72,6 +78,7 @@ export function FieldShell({ children }: { children: React.ReactNode }) {
     window.addEventListener("safiroute:saved", onSaved);
     window.addEventListener("safiroute:lock", onLock);
     return () => {
+      active = false;
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
       window.removeEventListener("safiroute:saved", onSaved);
@@ -81,13 +88,13 @@ export function FieldShell({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   useEffect(() => {
-    if (!online || locked) return;
+    if (!user || !online || locked) return;
     void flushSalesWaybills().then((result) => {
       if (result.sent) setSyncNote(`${result.sent} waybill${result.sent === 1 ? "" : "s"} sent to HQ`);
       void refreshStatus();
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [online, pathname, locked]);
+  }, [online, pathname, locked, user]);
 
   const title = useMemo(() => {
     if (pathname === "/field/settings") return "Settings";
@@ -95,10 +102,6 @@ export function FieldShell({ children }: { children: React.ReactNode }) {
     if (pathname.startsWith("/field/waybill/")) return "Waybill";
     return "Sales waybills";
   }, [pathname]);
-
-  if (!user) {
-    return <div className="grid min-h-dvh place-items-center bg-[#f4efe2] text-forest-800">Opening SafiRoute…</div>;
-  }
 
   async function unlock(event: React.FormEvent) {
     event.preventDefault();
@@ -115,6 +118,10 @@ export function FieldShell({ children }: { children: React.ReactNode }) {
     localStorage.removeItem(LOCK_KEY);
     setPin("");
     setLocked(false);
+  }
+
+  if (opening || !user) {
+    return <div className="grid min-h-dvh place-items-center bg-[#f4efe2] text-forest-800">Opening SafiRoute…</div>;
   }
 
   return (
