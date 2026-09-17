@@ -128,6 +128,7 @@ export type Waybill = {
 };
 
 const USER_KEY = "safiroute_user";
+const OFFLINE_USER_KEY = "safiroute_offline_sales_profile";
 
 function readCookie(name: string) {
   if (typeof document === "undefined") return "";
@@ -205,9 +206,28 @@ export function loginRequest(username: string, password: string) {
   });
 }
 
+function readOfflineUser(): User | null {
+  if (typeof window === "undefined") return null;
+  const raw = localStorage.getItem(OFFLINE_USER_KEY);
+  if (!raw) return null;
+  try {
+    const user = JSON.parse(raw) as User;
+    return user?.role === "sales" ? user : null;
+  } catch {
+    localStorage.removeItem(OFFLINE_USER_KEY);
+    return null;
+  }
+}
+
 export function saveSession(user: User) {
   if (typeof window === "undefined") return;
   sessionStorage.setItem(USER_KEY, JSON.stringify(user));
+  // This is profile data only, never a credential or API token. Keeping the
+  // Sales identity lets an installed PWA reopen offline after the browser has
+  // discarded sessionStorage. Server writes still require the HttpOnly Django
+  // session once connectivity returns.
+  if (user.role === "sales") localStorage.setItem(OFFLINE_USER_KEY, JSON.stringify(user));
+  else localStorage.removeItem(OFFLINE_USER_KEY);
   localStorage.removeItem("safiroute_token");
   localStorage.removeItem("safiroute_user");
 }
@@ -224,6 +244,7 @@ export async function logoutRequest() {
 export function clearSession() {
   if (typeof window === "undefined") return;
   sessionStorage.removeItem(USER_KEY);
+  localStorage.removeItem(OFFLINE_USER_KEY);
   localStorage.removeItem("safiroute_token");
   localStorage.removeItem("safiroute_user");
 }
@@ -231,7 +252,15 @@ export function clearSession() {
 export function readUser(): User | null {
   if (typeof window === "undefined") return null;
   const raw = sessionStorage.getItem(USER_KEY);
-  return raw ? (JSON.parse(raw) as User) : null;
+  if (raw) {
+    try {
+      return JSON.parse(raw) as User;
+    } catch {
+      sessionStorage.removeItem(USER_KEY);
+    }
+  }
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return readOfflineUser();
+  return null;
 }
 
 export async function bootstrapSession(): Promise<User | null> {
@@ -240,11 +269,13 @@ export async function bootstrapSession(): Promise<User | null> {
     saveSession(user);
     return user;
   } catch {
-    const cached = readUser();
-    if (cached && typeof navigator !== "undefined" && navigator.onLine === false) {
+    const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+    const cached = offline ? readOfflineUser() : null;
+    if (cached) {
+      sessionStorage.setItem(USER_KEY, JSON.stringify(cached));
       return cached;
     }
-    clearSession();
+    sessionStorage.removeItem(USER_KEY);
     return null;
   }
 }
