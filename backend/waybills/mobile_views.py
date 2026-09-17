@@ -34,8 +34,11 @@ def _client_uuid(value):
 
 
 def _quantity(value):
+    # The physical Safisana waybill does not have a separate quantity column.
+    # When Sales writes the quantity as part of the description, retain one
+    # logical line item server-side instead of forcing an extra phone field.
     if value in (None, ""):
-        raise ValidationError({"items": "Quantity is required."})
+        return Decimal("1")
     try:
         qty = Decimal(str(value))
     except (InvalidOperation, TypeError) as exc:
@@ -116,7 +119,6 @@ def _ingest_sales_waybill(request):
         "delivery_address_text": address,
         "authorised_by_name": authorised_by,
         "dispatched_by_name": dispatched_by,
-        "vehicle_registration": registration,
         "received_by": received_by,
     }
     missing = [key for key, value in required.items() if not value]
@@ -144,21 +146,19 @@ def _ingest_sales_waybill(request):
             }
         )
     if not lines:
-        raise ValidationError({"items": "Add at least one product line."})
+        raise ValidationError({"items": "Add at least one description line."})
 
     authorised_signature = _data_url_file(data.get("authorised_signature"), f"sales-{uid}")
     dispatch_signature = _data_url_file(data.get("dispatched_signature"), f"dispatch-{uid}")
     customer_signature = _data_url_file(data.get("customer_signature"), f"customer-{uid}")
     photo = _data_url_file(data.get("photo"), f"delivery-{uid}")
     if not authorised_signature or not dispatch_signature or not customer_signature:
-        raise ValidationError({"detail": "Sales, Dispatch, and Customer signatures are required."})
-    if not photo:
-        raise ValidationError({"photo": "A delivery photo is required."})
+        raise ValidationError({"detail": "Authorised, Dispatch, and Received signatures are required."})
 
+    # GPS and photos remain supported digital proof, but they are optional so
+    # the phone form can stay faithful to the Safisana paper waybill.
     lat = _optional_decimal(data.get("lat"), "lat")
     lng = _optional_decimal(data.get("lng"), "lng")
-    if (lat is None or lng is None) and not gps_reason:
-        raise ValidationError({"detail": "Capture GPS or record why GPS is unavailable."})
 
     customer = Customer.objects.filter(name__iexact=deliver_to).first()
     if customer is None:
@@ -170,10 +170,12 @@ def _ingest_sales_waybill(request):
             phone=(data.get("contact_phone") or "")[:32],
         )
 
-    vehicle, _ = Vehicle.objects.get_or_create(
-        registration_number=registration[:24],
-        defaults={"transport_company": "Safisana Ghana", "is_active": True},
-    )
+    vehicle = None
+    if registration:
+        vehicle, _ = Vehicle.objects.get_or_create(
+            registration_number=registration[:24],
+            defaults={"transport_company": "Safisana Ghana", "is_active": True},
+        )
 
     device_timestamp = parse_datetime(str(data.get("device_timestamp") or "")) or timezone.now()
     document_date = parse_date(str(data.get("document_date") or "")) or timezone.localdate()
@@ -219,12 +221,13 @@ def _ingest_sales_waybill(request):
             notes=line["notes"],
         )
 
-    WaybillPhoto.objects.create(
-        waybill=waybill,
-        image=photo,
-        caption="Delivery photo captured on SafiRoute Sales",
-        uploaded_by=request.user,
-    )
+    if photo:
+        WaybillPhoto.objects.create(
+            waybill=waybill,
+            image=photo,
+            caption="Delivery photo captured on SafiRoute Sales",
+            uploaded_by=request.user,
+        )
 
     record_audit(
         waybill,
