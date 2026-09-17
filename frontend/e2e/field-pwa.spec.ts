@@ -1,5 +1,19 @@
 import { expect, test } from "@playwright/test";
 
+const FIELD_USER = {
+  id: 42,
+  username: "driver-ci",
+  first_name: "Field",
+  last_name: "Driver",
+  full_name: "Field Driver",
+  email: "",
+  role: "driver",
+  role_display: "Driver",
+  phone: "",
+  employee_id: "CI-DRIVER",
+  branch: "Accra",
+};
+
 test.describe("installable field PWA", () => {
   test("manifest is a standalone field app", async ({ request }) => {
     const res = await request.get("/manifest.json");
@@ -18,7 +32,7 @@ test.describe("installable field PWA", () => {
     await expect(page.getByRole("button", { name: /Enter dashboard|Open field app/ })).toBeVisible();
   });
 
-  test("service worker keeps the field shell after going offline", async ({ page, context }) => {
+  test("service worker keeps an authenticated field shell after going offline", async ({ page, context }) => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
 
@@ -32,14 +46,19 @@ test.describe("installable field PWA", () => {
       )
       .toBe("active");
 
+    await page.evaluate((user) => {
+      sessionStorage.setItem("safiroute_user", JSON.stringify(user));
+    }, FIELD_USER);
+
     await page.goto("/field");
     await expect(page.getByRole("heading", { name: "Today's runs" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Download for offline" })).toBeVisible();
 
     await context.setOffline(true);
-    const response = await page.goto("/field", { waitUntil: "domcontentloaded" });
-    expect(response).not.toBeNull();
-    await expect(page.locator("body")).toBeVisible();
+    await page.reload({ waitUntil: "domcontentloaded" });
+
     await expect(page.getByRole("heading", { name: "Today's runs" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Download for offline" })).toBeVisible();
+    await expect(page.getByText(/Offline mode|Could not reach SafiRoute|No signal/)).toBeVisible();
   });
 });
