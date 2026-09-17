@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SignaturePad } from "@/components/SignaturePad";
@@ -9,18 +10,28 @@ import {
   deleteSalesWaybill,
   emptyLine,
   getSalesMobileSettings,
+  getSalesReferences,
   getSalesWaybill,
   isMeaningfulSalesDraft,
+  refreshSalesReferences,
   saveSalesWaybill,
   syncSalesWaybill,
   validateSalesWaybill,
   waybillChecklist,
+  type SalesMobileReferences,
   type SalesMobileSettings,
   type SalesWaybill,
 } from "@/lib/sales-mobile";
 
 type Props = {
   waybillId?: string;
+};
+
+const EMPTY_REFERENCES: SalesMobileReferences = {
+  id: "references",
+  customers: [],
+  products: [],
+  savedAt: "",
 };
 
 function fileToCompressedDataUrl(file: File): Promise<string> {
@@ -66,7 +77,9 @@ export function SalesWaybillEditor({ waybillId }: Props) {
   const router = useRouter();
   const [waybill, setWaybill] = useState<SalesWaybill | null>(null);
   const [settings, setSettings] = useState<SalesMobileSettings | null>(null);
+  const [references, setReferences] = useState<SalesMobileReferences>(EMPTY_REFERENCES);
   const [ready, setReady] = useState(false);
+  const [missingRecord, setMissingRecord] = useState(false);
   const [saveNote, setSaveNote] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
@@ -76,22 +89,31 @@ export function SalesWaybillEditor({ waybillId }: Props) {
   useEffect(() => {
     const user = readUser();
     if (!user) return;
-    Promise.all([getSalesMobileSettings(), waybillId ? getSalesWaybill(waybillId) : Promise.resolve(null)]).then(
-      ([profile, existing]) => {
-        setSettings(profile);
-        if (existing) setWaybill(existing);
-        else setWaybill(createSalesWaybill(user.full_name, profile));
-        setReady(true);
+    Promise.all([
+      getSalesMobileSettings(),
+      waybillId ? getSalesWaybill(waybillId) : Promise.resolve(null),
+      getSalesReferences(),
+    ]).then(([profile, existing, cachedReferences]) => {
+      setSettings(profile);
+      setReferences(cachedReferences);
+      if (waybillId && !existing) {
+        setMissingRecord(true);
+      } else {
+        setWaybill(existing || createSalesWaybill(user.full_name, profile));
       }
-    );
+      setReady(true);
+    });
+
+    if (navigator.onLine) {
+      void refreshSalesReferences().then(setReferences);
+    }
   }, [waybillId]);
 
   useEffect(() => {
     if (!ready || !waybill || waybill.status === "completed" || !isMeaningfulSalesDraft(waybill)) return;
     if (autosaveRef.current) clearTimeout(autosaveRef.current);
     autosaveRef.current = setTimeout(() => {
-      void saveSalesWaybill(waybill).then((saved) => {
-        setWaybill(saved);
+      void saveSalesWaybill(waybill).then(() => {
         setSaveNote(`Saved on this phone at ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
         window.dispatchEvent(new Event("safiroute:saved"));
       });
@@ -113,8 +135,21 @@ export function SalesWaybillEditor({ waybillId }: Props) {
 
   function updateItem(index: number, next: Partial<SalesWaybill["items"][number]>) {
     if (!waybill || locked) return;
+    patch({ items: waybill.items.map((item, itemIndex) => (itemIndex === index ? { ...item, ...next } : item)) });
+  }
+
+  function applyCustomer(name: string) {
+    if (!waybill || locked) return;
+    const match = references.customers.find((customer) => customer.name.toLowerCase() === name.trim().toLowerCase());
     patch({
-      items: waybill.items.map((item, itemIndex) => (itemIndex === index ? { ...item, ...next } : item)),
+      deliverTo: name,
+      ...(match
+        ? {
+            contactName: match.contact_name || waybill.contactName,
+            contactPhone: match.phone || waybill.contactPhone,
+            deliveryAddress: match.delivery_address || waybill.deliveryAddress,
+          }
+        : {}),
     });
   }
 
@@ -125,8 +160,14 @@ export function SalesWaybillEditor({ waybillId }: Props) {
       return;
     }
     setBusy("save");
-    const saved = await saveSalesWaybill({ ...waybill, status: "draft", syncStatus: "device_only" });
-    setWaybill(saved);
+    const next: SalesWaybill = {
+      ...waybill,
+      status: "draft",
+      syncStatus: "device_only",
+      updatedAt: new Date().toISOString(),
+    };
+    await saveSalesWaybill(next);
+    setWaybill(next);
     setSaveNote("Draft saved safely on this phone.");
     window.dispatchEvent(new Event("safiroute:saved"));
     setBusy("");
@@ -143,19 +184,29 @@ export function SalesWaybillEditor({ waybillId }: Props) {
     if (!window.confirm(`Complete ${waybill.localNumber} for ${waybill.deliverTo}?\n\nAfter completion the waybill becomes read-only.`)) return;
     setBusy("complete");
     const now = new Date().toISOString();
-    let saved = await saveSalesWaybill({
+    let saved: SalesWaybill = {
       ...waybill,
       status: "completed",
       syncStatus: "pending",
       completedAt: now,
       updatedAt: now,
-    });
+    };
+    await saveSalesWaybill(saved);
     window.dispatchEvent(new Event("safiroute:saved"));
     if (navigator.onLine) saved = await syncSalesWaybill(saved);
     setWaybill(saved);
     window.dispatchEvent(new Event("safiroute:saved"));
     setBusy("");
     router.push("/field");
+  }
+
+  async function retrySync() {
+    if (!waybill || waybill.status !== "completed") return;
+    setBusy("sync");
+    const synced = await syncSalesWaybill(waybill);
+    setWaybill(synced);
+    window.dispatchEvent(new Event("safiroute:saved"));
+    setBusy("");
   }
 
   async function removeDraft() {
@@ -198,12 +249,28 @@ export function SalesWaybillEditor({ waybillId }: Props) {
     );
   }
 
-  if (!ready || !waybill) {
-    return <div className="sales-loading-card">Opening your digital waybill pad…</div>;
+  if (!ready) return <div className="sales-loading-card">Opening your digital waybill pad…</div>;
+
+  if (missingRecord || !waybill) {
+    return (
+      <div className="sales-empty-state">
+        <div className="sales-empty-paper" aria-hidden="true"><span>!</span></div>
+        <h3>Waybill not found on this phone</h3>
+        <p>It may have been removed or restored on another device.</p>
+        <Link href="/field">Back to waybills</Link>
+      </div>
+    );
   }
 
   return (
     <div className="sales-editor">
+      <datalist id="sales-customer-options">
+        {references.customers.map((customer) => <option key={customer.id} value={customer.name} />)}
+      </datalist>
+      <datalist id="sales-product-options">
+        {references.products.map((product) => <option key={product.id} value={product.name || product.sku || ""} />)}
+      </datalist>
+
       <div className="sales-editor-head">
         <button type="button" onClick={() => router.push("/field")} className="sales-back-button" aria-label="Back to waybills">←</button>
         <div>
@@ -215,8 +282,17 @@ export function SalesWaybillEditor({ waybillId }: Props) {
 
       {locked && (
         <div className={`sales-complete-banner ${waybill.syncStatus === "synced" ? "is-synced" : "is-pending"}`}>
-          <strong>{waybill.syncStatus === "synced" ? "✓ Verified on HQ" : "✓ Completed on this phone"}</strong>
-          <span>{waybill.syncStatus === "synced" ? `Server waybill ${waybill.serverNumber || "accepted"}` : "Waiting for a connection to send to HQ."}</span>
+          <div>
+            <strong>{waybill.syncStatus === "synced" ? "✓ Verified on HQ" : "✓ Completed on this phone"}</strong>
+            <span>
+              {waybill.syncStatus === "synced"
+                ? `Server waybill ${waybill.serverNumber || "accepted"}`
+                : waybill.syncError || "Waiting for a connection to send to HQ."}
+            </span>
+          </div>
+          {waybill.syncStatus !== "synced" && navigator.onLine && (
+            <button type="button" onClick={retrySync} disabled={busy === "sync"}>{busy === "sync" ? "Sending…" : "Send now"}</button>
+          )}
         </div>
       )}
 
@@ -235,7 +311,7 @@ export function SalesWaybillEditor({ waybillId }: Props) {
         <div className="sales-step-heading"><span>1</span><div><h2>Customer</h2><p>Who is receiving this delivery?</p></div></div>
         <div className="sales-form-grid">
           <label className="sales-field sales-field-wide">Deliver to *
-            <input disabled={locked} autoComplete="organization" value={waybill.deliverTo} onChange={(event) => patch({ deliverTo: event.target.value })} placeholder="Customer or company name" />
+            <input list="sales-customer-options" disabled={locked} autoComplete="organization" value={waybill.deliverTo} onChange={(event) => applyCustomer(event.target.value)} placeholder="Customer or company name" />
           </label>
           <label className="sales-field">Date
             <input disabled={locked} type="date" value={waybill.documentDate} onChange={(event) => patch({ documentDate: event.target.value })} />
@@ -250,6 +326,7 @@ export function SalesWaybillEditor({ waybillId }: Props) {
             <textarea disabled={locked} rows={2} value={waybill.deliveryAddress} onChange={(event) => patch({ deliveryAddress: event.target.value })} placeholder="Where should the goods be delivered?" />
           </label>
         </div>
+        {references.savedAt && <p className="sales-reference-note">Customer suggestions are saved for offline use.</p>}
       </section>
 
       <section className="sales-form-card">
@@ -259,7 +336,7 @@ export function SalesWaybillEditor({ waybillId }: Props) {
             <div className="sales-mobile-line" key={index}>
               <div className="sales-mobile-line-number">{index + 1}</div>
               <label className="sales-field sales-field-wide">Description
-                <input disabled={locked} value={item.description} onChange={(event) => updateItem(index, { description: event.target.value })} placeholder="e.g. Fortifer Organic Fertilizer 50kg" />
+                <input list="sales-product-options" disabled={locked} value={item.description} onChange={(event) => updateItem(index, { description: event.target.value })} placeholder="e.g. Fortifer Organic Fertilizer 50kg" />
               </label>
               <label className="sales-field">Qty
                 <input disabled={locked} type="number" min="0" step="0.01" inputMode="decimal" value={item.qty} onChange={(event) => updateItem(index, { qty: event.target.value })} placeholder="0" />
@@ -271,9 +348,7 @@ export function SalesWaybillEditor({ waybillId }: Props) {
           ))}
         </div>
         {!locked && (
-          <button type="button" className="sales-secondary-button sales-add-line" onClick={() => patch({ items: [...waybill.items, emptyLine()] })}>
-            + Add another line
-          </button>
+          <button type="button" className="sales-secondary-button sales-add-line" onClick={() => patch({ items: [...waybill.items, emptyLine()] })}>+ Add another line</button>
         )}
       </section>
 
@@ -379,9 +454,7 @@ export function SalesWaybillEditor({ waybillId }: Props) {
             <span>{Math.round((completeCount / Math.max(1, checklist.length)) * 100)}%</span>
           </div>
           <div className="sales-progress"><i style={{ width: `${(completeCount / Math.max(1, checklist.length)) * 100}%` }} /></div>
-          <ul>
-            {checklist.map((item) => <li key={item.id} className={item.done ? "done" : ""}><b>{item.done ? "✓" : "○"}</b><span>{item.label}</span></li>)}
-          </ul>
+          <ul>{checklist.map((item) => <li key={item.id} className={item.done ? "done" : ""}><b>{item.done ? "✓" : "○"}</b><span>{item.label}</span></li>)}</ul>
         </section>
       )}
 
@@ -393,6 +466,10 @@ export function SalesWaybillEditor({ waybillId }: Props) {
           <button type="button" className="sales-secondary-button" onClick={saveDraft} disabled={Boolean(busy)}>{busy === "save" ? "Saving…" : "Save draft"}</button>
           <button type="button" className="sales-primary-button" onClick={complete} disabled={Boolean(busy)}>{busy === "complete" ? "Completing…" : busy === "photo" ? "Saving photo…" : "Complete waybill"}</button>
         </div>
+      )}
+
+      {locked && waybill.syncStatus === "synced" && waybill.verificationToken && (
+        <Link href={`/verify/${waybill.verificationToken}`} className="sales-primary-button sales-verify-link">Verify this waybill</Link>
       )}
     </div>
   );
