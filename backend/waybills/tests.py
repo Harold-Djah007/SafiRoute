@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.test import TestCase
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
@@ -7,6 +8,7 @@ from waybills.models import Customer, Product, User, Vehicle, Waybill, WaybillIt
 
 class WaybillWorkflowTests(TestCase):
     def setUp(self):
+        cache.clear()
         self.sales = User.objects.create_user("sales", password="safiroute", role=User.Role.SALES, first_name="Ama")
         self.supervisor = User.objects.create_user("sup", password="safiroute", role=User.Role.SUPERVISOR)
         self.warehouse = User.objects.create_user("wh", password="safiroute", role=User.Role.WAREHOUSE)
@@ -130,14 +132,15 @@ class WaybillWorkflowTests(TestCase):
         listing = self.client.get("/api/waybills/")
         self.assertEqual(listing.data["count"], 0)
 
-    def test_login_returns_token(self):
+    def test_login_uses_session_without_exposing_api_token(self):
         res = self.client.post(
             "/api/auth/login/",
             {"username": "sales", "password": "safiroute"},
             format="json",
         )
         self.assertEqual(res.status_code, 200, res.data)
-        self.assertIn("token", res.data)
+        self.assertTrue(res.data["session"])
+        self.assertNotIn("token", res.data)
         self.assertEqual(res.data["user"]["username"], "sales")
         noslash = self.client.post(
             "/api/auth/login",
@@ -145,6 +148,7 @@ class WaybillWorkflowTests(TestCase):
             format="json",
         )
         self.assertEqual(noslash.status_code, 200, noslash.data)
+        self.assertNotIn("token", noslash.data)
 
     def test_driver_field_pack_downloads_assigned_waybills(self):
         wb = Waybill.objects.create(
