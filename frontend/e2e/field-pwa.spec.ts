@@ -48,6 +48,27 @@ test.describe("installable SafiRoute Sales PWA", () => {
     await expect(page.getByText("Today's runs")).toHaveCount(0);
   });
 
+  test("new waybill mirrors the simple Safisana paper form", async ({ page }) => {
+    await page.goto("/");
+    await page.evaluate((user) => {
+      sessionStorage.setItem("safiroute_user", JSON.stringify(user));
+    }, SALES_USER);
+
+    await page.goto("/field/new");
+    await expect(page.getByLabel("Deliver to:")).toBeVisible();
+    await expect(page.getByLabel("Delivery Contact Name:")).toBeVisible();
+    await expect(page.getByLabel("Contact Phone:")).toBeVisible();
+    await expect(page.getByLabel("Address:")).toBeVisible();
+    await expect(page.getByText("Description", { exact: true })).toBeVisible();
+    await expect(page.getByText("Remarks", { exact: true }).first()).toBeVisible();
+    await expect(page.getByLabel("Authorised by:")).toBeVisible();
+    await expect(page.getByLabel("Dispatched by:")).toBeVisible();
+    await expect(page.getByLabel("Received by:")).toBeVisible();
+    await expect(page.getByText("Digital proof")).toBeVisible();
+    await expect(page.getByText("Vehicle registration")).toHaveCount(0);
+    await expect(page.getByText("Driver")).toHaveCount(0);
+  });
+
   test("service worker keeps the Sales waybill shell available offline", async ({ page, context }) => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
