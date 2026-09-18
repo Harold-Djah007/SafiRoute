@@ -63,8 +63,8 @@ jobs:
         working-directory: mobile
         run: |
           flutter pub get
-          dart run flutter_launcher_icons
-          dart run flutter_native_splash:create
+          dart run flutter_launcher_icons -f tool/icons-android.yaml
+          dart run flutter_native_splash:create --path=tool/splash-android.yaml
 
       - name: Quality gates
         working-directory: mobile
