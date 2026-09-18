@@ -13,7 +13,10 @@ Every production candidate must pass GitHub Actions with:
 - `npm ci` from the committed lockfile.
 - Production Node dependency audit with no high/critical findings.
 - Next.js production build using the supported Active-LTS line.
-- Playwright acceptance tests for the field PWA at mobile (Pixel-sized) and desktop viewports, including offline behavior.
+- Playwright acceptance tests for the Sales field PWA at mobile (Pixel-sized) and desktop viewports, including offline behavior.
+- Flutter dependency install, SafiRoute icon/splash generation, `flutter analyze` and `flutter test`.
+- Android debug APK and release-mode AAB candidate compilation.
+- iOS release compilation on macOS with code signing disabled for CI verification.
 
 A failed or skipped required step blocks promotion to `main`.
 
@@ -35,14 +38,23 @@ Before deployment:
 
 Before Safisana relies on SafiRoute for live deliveries:
 
-- Run an end-to-end plant pilot on the actual Android phones used by sales/drivers.
-- Prove create → approve → load → dispatch → offline proof → reconnect/sync → QR/PDF verification.
+- Run an end-to-end field pilot on the actual Android/iPhone devices used by Safisana Sales.
+- Prove create → save offline → sign → complete → reconnect/sync → HQ PDF/QR verification.
 - Test loss of network before, during and after proof submission; confirm replay does not duplicate a delivery.
 - Exercise backup creation and a clean restore, then run audit-chain and PDF-integrity checks.
-- Validate GPS permission denial, camera denial, low storage, browser restart and device reboot recovery.
-- Review role access with Sales, Warehouse, Driver, Finance and an administrator.
+- Validate GPS permission denial, camera denial, low storage, app/browser restart and device reboot recovery.
+- Confirm Sales-only access to the mobile waybill app and review HQ permissions with the administrator and any office roles actually enabled.
 - Complete accessibility checks and a focused independent security review.
 - Confirm retention/privacy handling for customer data, signatures, GPS coordinates and photos.
+
+## Store-signing gates
+
+Before calling the native apps distributable:
+
+- Android must use an organization-controlled upload keystore; debug/test signing is not a production release.
+- The production Android application ID, Play Console record, signing recovery process and release track must be documented.
+- iOS must use an Apple Developer team, distribution certificate, provisioning profile and App Store Connect/TestFlight record.
+- Production mobile builds must point at the permanent HTTPS SafiRoute API; insecure HTTP is allowed only for explicit local/debug testing.
 
 ## Release decision
 
