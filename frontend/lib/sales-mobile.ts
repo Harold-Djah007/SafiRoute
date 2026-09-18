@@ -204,7 +204,7 @@ export function createSalesWaybill(authorisedBy = "", settings?: SalesMobileSett
     authorisedBy,
     authorisedRemarks: "",
     dispatchedBy: "",
-    vehicleNumber: settings?.vehicleNumber || "",
+    vehicleNumber: "",
     receivedBy: "",
     receivedByRole: "",
     items: Array.from({ length: 3 }, emptyLine),
@@ -402,9 +402,7 @@ function ingestPayload(waybill: SalesWaybill) {
     authorised_by_name: waybill.authorisedBy,
     authorised_remarks: waybill.authorisedRemarks,
     dispatched_by_name: waybill.dispatchedBy,
-    vehicle_registration: waybill.vehicleNumber,
     received_by: waybill.receivedBy,
-    received_by_role: waybill.receivedByRole,
     items: waybill.items
       .filter((item) => item.description.trim() || item.qty || item.remarks.trim())
       .map((item) => ({ product_name: item.description.trim(), ordered_qty: item.qty, notes: item.remarks })),
