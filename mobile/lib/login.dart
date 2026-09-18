@@ -21,14 +21,22 @@ class _GateState extends State<Gate> {
   }
 
   Future<void> check() async {
-    try {
-      final token = await Api.token();
-      if (token != null) {
+    final token = await Api.token();
+    if (token != null) {
+      try {
         final me = await Api.me();
         signedIn = me['role'] == 'sales' || me['role'] == 'admin';
+      } on ApiException catch (error) {
+        if (error.isAuthenticationFailure) {
+          await Api.clearToken();
+        } else {
+          final cached = await Api.cachedUser();
+          signedIn = cached != null;
+        }
+      } catch (_) {
+        final cached = await Api.cachedUser();
+        signedIn = cached != null;
       }
-    } catch (_) {
-      await Api.clearToken();
     }
     if (mounted) setState(() => ready = true);
   }
