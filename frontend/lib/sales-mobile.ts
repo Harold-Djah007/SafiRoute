@@ -91,6 +91,18 @@ type SalesBackup = {
   waybills: SalesWaybill[];
 };
 
+type EncryptedSalesBackup = {
+  app: "SafiRoute";
+  format: "sales-mobile-backup-v2";
+  cipher: "AES-GCM";
+  kdf: "PBKDF2-SHA256";
+  iterations: number;
+  exportedAt: string;
+  salt: string;
+  iv: string;
+  ciphertext: string;
+};
+
 const defaultSettings = (): SalesMobileSettings => ({
   id: "profile",
   phone: "",
@@ -472,6 +484,79 @@ export function buildSalesBackup(settings: SalesMobileSettings, waybills: SalesW
     },
     waybills,
   };
+}
+
+const BACKUP_ITERATIONS = 310_000;
+
+async function backupKey(passphrase: string, salt: Uint8Array, iterations = BACKUP_ITERATIONS) {
+  if (passphrase.length < 8) throw new Error("Use at least 8 characters for the backup password.");
+  const material = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(passphrase),
+    "PBKDF2",
+    false,
+    ["deriveKey"]
+  );
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", hash: "SHA-256", salt, iterations },
+    material,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+}
+
+export async function encryptSalesBackup(payload: SalesBackup, passphrase: string): Promise<EncryptedSalesBackup> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await backupKey(passphrase, salt);
+  const encrypted = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    key,
+    new TextEncoder().encode(JSON.stringify(payload))
+  );
+  return {
+    app: "SafiRoute",
+    format: "sales-mobile-backup-v2",
+    cipher: "AES-GCM",
+    kdf: "PBKDF2-SHA256",
+    iterations: BACKUP_ITERATIONS,
+    exportedAt: new Date().toISOString(),
+    salt: bytesToBase64(salt),
+    iv: bytesToBase64(iv),
+    ciphertext: bytesToBase64(new Uint8Array(encrypted)),
+  };
+}
+
+export async function decryptSalesBackup(payload: unknown, passphrase: string): Promise<unknown> {
+  if (!payload || typeof payload !== "object") throw new Error("This is not a SafiRoute backup file.");
+  const backup = payload as Partial<EncryptedSalesBackup>;
+  if (
+    backup.app !== "SafiRoute" ||
+    backup.format !== "sales-mobile-backup-v2" ||
+    backup.cipher !== "AES-GCM" ||
+    backup.kdf !== "PBKDF2-SHA256" ||
+    typeof backup.iterations !== "number" ||
+    typeof backup.salt !== "string" ||
+    typeof backup.iv !== "string" ||
+    typeof backup.ciphertext !== "string"
+  ) {
+    return payload;
+  }
+  if (backup.iterations < 100_000 || backup.iterations > 1_000_000) {
+    throw new Error("This SafiRoute backup uses an unsupported key-derivation setting.");
+  }
+
+  try {
+    const salt = base64ToBytes(backup.salt);
+    const iv = base64ToBytes(backup.iv);
+    const ciphertext = base64ToBytes(backup.ciphertext);
+    const key = await backupKey(passphrase, salt, backup.iterations);
+    const clear = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
+    return JSON.parse(new TextDecoder().decode(clear)) as unknown;
+  } catch {
+    throw new Error("Backup password is incorrect or the backup file has been damaged.");
+  }
 }
 
 function isRestorableWaybill(value: unknown): value is SalesWaybill {
