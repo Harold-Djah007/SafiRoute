@@ -117,7 +117,7 @@ class _HomePageState extends State<HomePage>
           final attempts =
               ((wb['syncAttempts'] as num?)?.toInt() ?? 0) + 1;
           final retryIndex =
-              (attempts - 1).clamp(0, retryMinutes.length - 1);
+              (attempts - 1).clamp(0, retryMinutes.length - 1).toInt();
           wb['syncStatus'] = 'failed';
           wb['syncAttempts'] = attempts;
           wb['syncError'] = e.toString().replaceFirst('Exception: ', '');
