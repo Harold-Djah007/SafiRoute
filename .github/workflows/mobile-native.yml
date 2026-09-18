@@ -1,0 +1,98 @@
+name: Native mobile builds
+
+on:
+  pull_request:
+    paths:
+      - "mobile/**"
+      - ".github/workflows/mobile-native.yml"
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: "SafiRoute API base URL baked into this test build"
+        required: false
+        default: "https://safiroute.invalid/api"
+
+permissions:
+  contents: read
+
+env:
+  SAFIROUTE_API: ${{ github.event.inputs.api_url || 'https://safiroute.invalid/api' }}
+
+jobs:
+  android-apk:
+    name: Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate Android project
+        working-directory: mobile
+        run: |
+          flutter create --platforms=android --org com.safisana --project-name safiroute .
+          python3 tool/prepare_platforms.py
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Analyze Dart
+        working-directory: mobile
+        run: flutter analyze
+
+      - name: Build debug APK
+        working-directory: mobile
+        run: flutter build apk --debug --dart-define=SAFIROUTE_API="$SAFIROUTE_API"
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SafiRoute-Android-debug
+          path: mobile/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+
+  ios-app:
+    name: iOS unsigned app
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate iOS project
+        working-directory: mobile
+        run: |
+          flutter create --platforms=ios --org com.safisana --project-name safiroute .
+          python3 tool/prepare_platforms.py
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Analyze Dart
+        working-directory: mobile
+        run: flutter analyze
+
+      - name: Build iOS without signing
+        working-directory: mobile
+        run: flutter build ios --release --no-codesign --dart-define=SAFIROUTE_API="$SAFIROUTE_API"
+
+      - name: Archive unsigned iOS app
+        working-directory: mobile
+        run: ditto -c -k --sequesterRsrc --keepParent build/ios/iphoneos/Runner.app build/SafiRoute-iOS-unsigned.zip
+
+      - name: Upload iOS app
+        uses: actions/upload-artifact@v4
+        with:
+          name: SafiRoute-iOS-unsigned
+          path: mobile/build/SafiRoute-iOS-unsigned.zip
+          if-no-files-found: error
