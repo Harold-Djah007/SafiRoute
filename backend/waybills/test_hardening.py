@@ -155,6 +155,64 @@ class SessionAuthTests(TestCase):
         self.assertEqual(blocked.status_code, 429)
 
 
+class MobileAuthTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.sales = User.objects.create_user(
+            "mobile-sales",
+            password="safiroute",
+            role=User.Role.SALES,
+        )
+        self.driver = User.objects.create_user(
+            "mobile-driver",
+            password="safiroute",
+            role=User.Role.DRIVER,
+        )
+        self.client = APIClient()
+
+    def _mobile_token(self):
+        response = self.client.post(
+            "/api/auth/mobile-token/",
+            {"username": "mobile-sales", "password": "safiroute"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["token_type"], "Mobile")
+        self.assertGreater(response.data["expires_in"], 0)
+        return response.data["token"]
+
+    def test_mobile_token_authenticates_sales_user(self):
+        token = self._mobile_token()
+        self.client.credentials(HTTP_AUTHORIZATION=f"Mobile {token}")
+        response = self.client.get("/api/me/")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["username"], "mobile-sales")
+
+    def test_mobile_token_endpoint_rejects_non_sales_role(self):
+        response = self.client.post(
+            "/api/auth/mobile-token/",
+            {"username": "mobile-driver", "password": "safiroute"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("Sales", response.data["detail"])
+
+    @override_settings(MOBILE_TOKEN_MAX_AGE_SECONDS=-1)
+    def test_mobile_token_expires(self):
+        token = self._mobile_token()
+        self.client.credentials(HTTP_AUTHORIZATION=f"Mobile {token}")
+        response = self.client.get("/api/me/")
+        self.assertEqual(response.status_code, 403)
+
+    def test_password_change_revokes_mobile_token(self):
+        token = self._mobile_token()
+        self.sales.set_password("new-safe-password")
+        self.sales.save(update_fields=["password"])
+        self.client.credentials(HTTP_AUTHORIZATION=f"Mobile {token}")
+        response = self.client.get("/api/me/")
+        self.assertEqual(response.status_code, 403)
+
+
 class FingerprintTests(TestCase):
     def setUp(self):
         self.sales = User.objects.create_user("sales", password="safiroute", role=User.Role.SALES)
