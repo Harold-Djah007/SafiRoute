@@ -268,10 +268,67 @@ export async function refreshSalesReferences(): Promise<SalesMobileReferences> {
   }
 }
 
-export async function hashPin(pin: string) {
+const PIN_ITERATIONS = 210_000;
+
+function bytesToBase64(bytes: Uint8Array) {
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary);
+}
+
+function base64ToBytes(value: string) {
+  const binary = atob(value);
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+
+async function derivePin(pin: string, salt: Uint8Array, iterations: number) {
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(pin),
+    "PBKDF2",
+    false,
+    ["deriveBits"]
+  );
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", hash: "SHA-256", salt, iterations },
+    keyMaterial,
+    256
+  );
+  return new Uint8Array(bits);
+}
+
+async function legacyPinHash(pin: string) {
   const bytes = new TextEncoder().encode(`safiroute-sales-pin:${pin}`);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+export async function hashPin(pin: string) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const derived = await derivePin(pin, salt, PIN_ITERATIONS);
+  return `pbkdf2${PIN_ITERATIONS}${bytesToBase64(salt)}${bytesToBase64(derived)}`;
+}
+
+export async function verifyPin(pin: string, stored: string) {
+  if (!stored.startsWith("pbkdf2$")) {
+    return (await legacyPinHash(pin)) === stored;
+  }
+
+  const [, rawIterations, rawSalt, rawHash] = stored.split("$");
+  const iterations = Number(rawIterations);
+  if (!Number.isInteger(iterations) || iterations < 100_000 || !rawSalt || !rawHash) return false;
+
+  const expected = base64ToBytes(rawHash);
+  const actual = await derivePin(pin, base64ToBytes(rawSalt), iterations);
+  if (actual.length !== expected.length) return false;
+
+  let difference = 0;
+  for (let index = 0; index < actual.length; index += 1) {
+    difference |= actual[index] ^ expected[index];
+  }
+  return difference === 0;
 }
 
 export function waybillChecklist(waybill: SalesWaybill) {
