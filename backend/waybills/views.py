@@ -29,6 +29,7 @@ from .pdf import generate_waybill_pdf
 from .fingerprints import pdf_matches_stored_hash
 from .permissions import (
     HasWaybillAccess,
+    ReferenceDataPermission,
     can_approve,
     can_cancel,
     can_create,
@@ -168,6 +169,7 @@ def verify_waybill(request, token):
 
 
 class CustomerViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated, ReferenceDataPermission]
     queryset = Customer.objects.all()
     serializer_class = CustomerSerializer
     search_fields = ["name", "account_number", "phone"]
@@ -175,6 +177,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
 
 
 class ProductViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated, ReferenceDataPermission]
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
     search_fields = ["name", "sku"]
@@ -182,6 +185,7 @@ class ProductViewSet(viewsets.ModelViewSet):
 
 
 class VehicleViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated, ReferenceDataPermission]
     queryset = Vehicle.objects.all()
     serializer_class = VehicleSerializer
     search_fields = ["registration_number", "transport_company"]
