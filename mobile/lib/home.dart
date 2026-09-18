@@ -73,16 +73,19 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> loadUser() async {
+    Map<String, dynamic>? me;
     try {
-      final me = await Api.me();
-      if (!mounted) return;
-      final fullName = me['full_name']?.toString() ?? '';
-      setState(() {
-        salesName = fullName.trim().isNotEmpty
-            ? fullName
-            : me['username']?.toString() ?? 'Sales';
-      });
-    } catch (_) {}
+      me = await Api.me();
+    } catch (_) {
+      me = await Api.cachedUser();
+    }
+    if (!mounted || me == null) return;
+    final fullName = me['full_name']?.toString() ?? '';
+    setState(() {
+      salesName = fullName.trim().isNotEmpty
+          ? fullName
+          : me?['username']?.toString() ?? 'Sales';
+    });
   }
 
   Future<void> syncPending({bool force = false}) async {
@@ -118,6 +121,17 @@ class _HomePageState extends State<HomePage>
           wb['serverNumber'] = result['waybill_number'];
           wb['verificationToken'] = result['verification_token'];
         } catch (e) {
+          if (e is ApiException && e.isAuthenticationFailure) {
+            await Api.clearToken();
+            if (mounted) {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginPage()),
+                (_) => false,
+              );
+            }
+            return;
+          }
           final attempts =
               ((wb['syncAttempts'] as num?)?.toInt() ?? 0) + 1;
           final retryIndex =
