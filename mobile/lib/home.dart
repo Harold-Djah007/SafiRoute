@@ -171,7 +171,7 @@ class _HomePageState extends State<HomePage>
           padding: const EdgeInsets.fromLTRB(18, 22, 18, 100),
           children: [
             Text(
-              'Good day, ' + firstName,
+              'Good day, $firstName',
               style: const TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.w800,
