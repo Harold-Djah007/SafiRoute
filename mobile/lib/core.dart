@@ -166,6 +166,17 @@ Map<String, dynamic> mobilePayload(Map<String, dynamic> waybill) {
   };
 }
 
+class ApiException implements Exception {
+  const ApiException(this.statusCode, this.message);
+
+  final int statusCode;
+  final String message;
+
+  bool get isAuthenticationFailure => statusCode == 401 || statusCode == 403;
+
+  @override
+  String toString() => message;
+}
 class Api {
   static const _secure = FlutterSecureStorage();
   static const _apiKey = 'safiroute_api_base';
@@ -220,9 +231,28 @@ class Api {
     return value;
   }
 
-  static Future<void> clearToken() async {
+  static Future<void> clearToken({bool clearProfile = true}) async {
     await _secure.delete(key: 'auth_token');
     await _secure.delete(key: 'auth_expires_at');
+    if (clearProfile) await _secure.delete(key: 'cached_sales_user');
+  }
+
+  static Future<Map<String, dynamic>?> cachedUser() async {
+    final raw = await _secure.read(key: 'cached_sales_user');
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      final user = Map<String, dynamic>.from(decoded);
+      return user['role'] == 'sales' || user['role'] == 'admin' ? user : null;
+    } catch (_) {
+      await _secure.delete(key: 'cached_sales_user');
+      return null;
+    }
+  }
+
+  static Future<void> _cacheUser(Map<String, dynamic> user) async {
+    await _secure.write(key: 'cached_sales_user', value: jsonEncode(user));
   }
 
   static Future<Map<String, dynamic>> request(
@@ -255,7 +285,8 @@ class Api {
         ? Map<String, dynamic>.from(decoded)
         : <String, dynamic>{};
     if (response.statusCode >= 400) {
-      throw Exception(
+      throw ApiException(
+        response.statusCode,
         data['detail']?.toString() ??
             'Request failed (${response.statusCode})',
       );
@@ -290,15 +321,27 @@ class Api {
           .toIso8601String(),
     );
 
-    final me = await request('GET', '/me/');
-    if (me['role'] != 'sales' && me['role'] != 'admin') {
+    try {
+      final me = await request('GET', '/me/');
+      if (me['role'] != 'sales' && me['role'] != 'admin') {
+        await clearToken();
+        throw Exception('The SafiRoute mobile app is for Sales users.');
+      }
+      await _cacheUser(me);
+      return me;
+    } catch (_) {
       await clearToken();
-      throw Exception('The SafiRoute mobile app is for Sales users.');
+      rethrow;
     }
-    return me;
   }
 
-  static Future<Map<String, dynamic>> me() => request('GET', '/me/');
+  static Future<Map<String, dynamic>> me() async {
+    final user = await request('GET', '/me/');
+    if (user['role'] == 'sales' || user['role'] == 'admin') {
+      await _cacheUser(user);
+    }
+    return user;
+  }
 
   static Future<Map<String, dynamic>> sync(Map<String, dynamic> waybill) {
     return request(
