@@ -42,3 +42,18 @@ def can_deliver(user):
 
 def can_cancel(user):
     return user.role in {User.Role.ADMIN, User.Role.SUPERVISOR}
+
+
+class ReferenceDataPermission(BasePermission):
+    """Allow authenticated lookups, but reserve master-data writes for office control roles."""
+
+    def has_permission(self, request, view):
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+        if request.method in SAFE_METHODS:
+            return True
+        return user.role in {User.Role.ADMIN, User.Role.SUPERVISOR}
+
+    def has_object_permission(self, request, view, obj):
+        return self.has_permission(request, view)
