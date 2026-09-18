@@ -207,8 +207,23 @@ class Api {
     await prefs.setString(_apiKey, normalise(value));
   }
 
-  static Future<String?> token() => _secure.read(key: 'auth_token');
-  static Future<void> clearToken() => _secure.delete(key: 'auth_token');
+  static Future<String?> token() async {
+    final value = await _secure.read(key: 'auth_token');
+    if (value == null || value.isEmpty) return null;
+
+    final rawExpiry = await _secure.read(key: 'auth_expires_at');
+    final expiry = rawExpiry == null ? null : DateTime.tryParse(rawExpiry);
+    if (expiry == null || !expiry.isAfter(DateTime.now().toUtc())) {
+      await clearToken();
+      return null;
+    }
+    return value;
+  }
+
+  static Future<void> clearToken() async {
+    await _secure.delete(key: 'auth_token');
+    await _secure.delete(key: 'auth_expires_at');
+  }
 
   static Future<Map<String, dynamic>> request(
     String method,
@@ -262,7 +277,18 @@ class Api {
     if (tokenValue == null || tokenValue.isEmpty) {
       throw Exception('No login token returned.');
     }
+    final expiresIn = (result['expires_in'] as num?)?.toInt() ?? 0;
+    if (expiresIn <= 0) {
+      throw Exception('Invalid mobile session lifetime.');
+    }
     await _secure.write(key: 'auth_token', value: tokenValue);
+    await _secure.write(
+      key: 'auth_expires_at',
+      value: DateTime.now()
+          .toUtc()
+          .add(Duration(seconds: expiresIn))
+          .toIso8601String(),
+    );
 
     final me = await request('GET', '/me/');
     if (me['role'] != 'sales' && me['role'] != 'admin') {
