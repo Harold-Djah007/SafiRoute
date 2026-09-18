@@ -26,9 +26,26 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.6
 
 flutter:
   uses-material-design: true
   assets:
     - assets/safiroute-logo.png
     - assets/safiroute-icon.png
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/safiroute-icon.png
+  adaptive_icon_background: "#F4EFE2"
+  adaptive_icon_foreground: assets/safiroute-icon.png
+  remove_alpha_ios: true
+
+flutter_native_splash:
+  color: "#F4EFE2"
+  image: assets/safiroute-icon.png
+  android_12:
+    color: "#F4EFE2"
+    image: assets/safiroute-icon.png
