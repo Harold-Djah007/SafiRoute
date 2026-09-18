@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 
 import 'core.dart';
@@ -16,6 +19,9 @@ class _HomePageState extends State<HomePage>
   List<Map<String, dynamic>> rows = [];
   String salesName = 'Sales';
   bool syncing = false;
+  bool online = true;
+  String? storageError;
+  StreamSubscription<List<ConnectivityResult>>? connectivitySubscription;
 
   @override
   void initState() {
@@ -23,12 +29,16 @@ class _HomePageState extends State<HomePage>
     WidgetsBinding.instance.addObserver(this);
     load();
     loadUser();
+    Connectivity().checkConnectivity().then(updateConnectivity);
+    connectivitySubscription =
+        Connectivity().onConnectivityChanged.listen(updateConnectivity);
     syncPending();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    connectivitySubscription?.cancel();
     super.dispose();
   }
 
@@ -37,9 +47,29 @@ class _HomePageState extends State<HomePage>
     if (state == AppLifecycleState.resumed) syncPending();
   }
 
+  void updateConnectivity(List<ConnectivityResult> results) {
+    final hasNetwork =
+        results.any((result) => result != ConnectivityResult.none);
+    if (mounted) setState(() => online = hasNetwork);
+    if (hasNetwork) syncPending();
+  }
+
   Future<void> load() async {
-    final data = await Store.all();
-    if (mounted) setState(() => rows = data);
+    try {
+      final data = await Store.all();
+      if (mounted) {
+        setState(() {
+          rows = data;
+          storageError = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          storageError = e.toString().replaceFirst('Bad state: ', '');
+        });
+      }
+    }
   }
 
   Future<void> loadUser() async {
@@ -55,30 +85,53 @@ class _HomePageState extends State<HomePage>
     } catch (_) {}
   }
 
-  Future<void> syncPending() async {
-    if (syncing) return;
+  Future<void> syncPending({bool force = false}) async {
+    if (syncing || (!online && !force)) return;
     setState(() => syncing = true);
-    final local = await Store.all();
-    for (final wb in local.where(
-      (item) =>
-          item['status'] == 'completed' &&
-          item['syncStatus'] != 'synced',
-    )) {
-      try {
-        final result = await Api.sync(wb);
-        wb['syncStatus'] = 'synced';
-        wb['syncError'] = '';
-        wb['serverNumber'] = result['waybill_number'];
-        wb['verificationToken'] = result['verification_token'];
-      } catch (e) {
-        wb['syncStatus'] = 'failed';
-        wb['syncError'] = e.toString();
+    try {
+      final local = await Store.all();
+      final now = DateTime.now().toUtc();
+      const retryMinutes = [1, 2, 4, 8, 16, 32, 60];
+
+      for (final wb in local.where(
+        (item) =>
+            item['status'] == 'completed' &&
+            item['syncStatus'] != 'synced',
+      )) {
+        final retryAt = DateTime.tryParse(
+          wb['nextRetryAt']?.toString() ?? '',
+        );
+        if (!force && retryAt != null && retryAt.isAfter(now)) {
+          continue;
+        }
+
+        try {
+          final result = await Api.sync(wb);
+          wb['syncStatus'] = 'synced';
+          wb['syncError'] = '';
+          wb['syncAttempts'] = 0;
+          wb['nextRetryAt'] = null;
+          wb['serverNumber'] = result['waybill_number'];
+          wb['verificationToken'] = result['verification_token'];
+        } catch (e) {
+          final attempts =
+              ((wb['syncAttempts'] as num?)?.toInt() ?? 0) + 1;
+          final retryIndex =
+              (attempts - 1).clamp(0, retryMinutes.length - 1);
+          wb['syncStatus'] = 'failed';
+          wb['syncAttempts'] = attempts;
+          wb['syncError'] = e.toString().replaceFirst('Exception: ', '');
+          wb['nextRetryAt'] = now
+              .add(Duration(minutes: retryMinutes[retryIndex]))
+              .toIso8601String();
+        }
+        wb['updatedAt'] = DateTime.now().toUtc().toIso8601String();
+        await Store.save(wb);
       }
-      wb['updatedAt'] = DateTime.now().toUtc().toIso8601String();
-      await Store.save(wb);
+    } finally {
+      if (mounted) setState(() => syncing = false);
+      await load();
     }
-    if (mounted) setState(() => syncing = false);
-    await load();
   }
 
   Future<void> openEditor(Map<String, dynamic> waybill) async {
@@ -132,7 +185,7 @@ class _HomePageState extends State<HomePage>
         ),
         actions: [
           IconButton(
-            onPressed: syncing ? null : syncPending,
+            onPressed: syncing ? null : () => syncPending(force: true),
             tooltip: 'Send pending waybills',
             icon: syncing
                 ? const SizedBox(
@@ -165,7 +218,7 @@ class _HomePageState extends State<HomePage>
       body: RefreshIndicator(
         onRefresh: () async {
           await load();
-          await syncPending();
+          await syncPending(force: true);
         },
         child: ListView(
           padding: const EdgeInsets.fromLTRB(18, 22, 18, 100),
@@ -179,8 +232,29 @@ class _HomePageState extends State<HomePage>
               ),
             ),
             const Text(
-              'Sales waybills saved on this phone.',
+              'Sales waybills saved securely on this phone.',
               style: TextStyle(color: Color(0xFF607067)),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(
+                  online ? Icons.cloud_done : Icons.cloud_off,
+                  size: 16,
+                  color: online ? forest : const Color(0xFF9A6500),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  online
+                      ? 'Online · pending waybills send automatically'
+                      : 'Offline · keep working; SafiRoute will retry later',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: online ? forest : const Color(0xFF9A6500),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             const JourneyCard(),
@@ -196,6 +270,23 @@ class _HomePageState extends State<HomePage>
                 Expanded(child: Stat(label: 'On HQ', value: synced)),
               ],
             ),
+            if (storageError != null) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFE3DE),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  storageError!,
+                  style: const TextStyle(
+                    color: Color(0xFF8B241C),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 22),
             const Text(
               'Saved waybills',
