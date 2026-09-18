@@ -295,6 +295,12 @@ function base64ToBytes(value: string) {
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }
 
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
+}
+
 async function derivePin(pin: string, salt: Uint8Array, iterations: number) {
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
@@ -304,7 +310,7 @@ async function derivePin(pin: string, salt: Uint8Array, iterations: number) {
     ["deriveBits"]
   );
   const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", hash: "SHA-256", salt, iterations },
+    { name: "PBKDF2", hash: "SHA-256", salt: toArrayBuffer(salt), iterations },
     keyMaterial,
     256
   );
@@ -496,7 +502,7 @@ async function backupKey(passphrase: string, salt: Uint8Array, iterations = BACK
     ["deriveKey"]
   );
   return crypto.subtle.deriveKey(
-    { name: "PBKDF2", hash: "SHA-256", salt, iterations },
+    { name: "PBKDF2", hash: "SHA-256", salt: toArrayBuffer(salt), iterations },
     material,
     { name: "AES-GCM", length: 256 },
     false,
@@ -509,9 +515,9 @@ export async function encryptSalesBackup(payload: SalesBackup, passphrase: strin
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await backupKey(passphrase, salt);
   const encrypted = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv },
+    { name: "AES-GCM", iv: toArrayBuffer(iv) },
     key,
-    new TextEncoder().encode(JSON.stringify(payload))
+    toArrayBuffer(new TextEncoder().encode(JSON.stringify(payload)))
   );
   return {
     app: "SafiRoute",
@@ -550,7 +556,7 @@ export async function decryptSalesBackup(payload: unknown, passphrase: string): 
     const iv = base64ToBytes(backup.iv);
     const ciphertext = base64ToBytes(backup.ciphertext);
     const key = await backupKey(passphrase, salt, backup.iterations);
-    const clear = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
+    const clear = await crypto.subtle.decrypt({ name: "AES-GCM", iv: toArrayBuffer(iv) }, key, toArrayBuffer(ciphertext));
     return JSON.parse(new TextDecoder().decode(clear)) as unknown;
   } catch {
     throw new Error("Backup password is incorrect or the backup file has been damaged.");
