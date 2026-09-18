@@ -219,7 +219,7 @@ class Api {
     final headers = <String, String>{'Content-Type': 'application/json'};
     if (auth) {
       final value = await token();
-      if (value != null) headers['Authorization'] = 'Token $value';
+      if (value != null) headers['Authorization'] = 'Mobile $value';
     }
 
     final uri = Uri.parse('${await base()}$path');
@@ -254,7 +254,7 @@ class Api {
   ) async {
     final result = await request(
       'POST',
-      '/auth/token/',
+      '/auth/mobile-token/',
       body: {'username': username.trim(), 'password': password},
       auth: false,
     );
