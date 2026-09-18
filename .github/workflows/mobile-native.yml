@@ -46,6 +46,12 @@ jobs:
         working-directory: mobile
         run: flutter pub get
 
+      - name: Apply SafiRoute native branding
+        working-directory: mobile
+        run: |
+          dart run flutter_launcher_icons
+          dart run flutter_native_splash:create
+
       - name: Analyze Dart
         working-directory: mobile
         run: flutter analyze
@@ -101,6 +107,12 @@ jobs:
       - name: Install dependencies
         working-directory: mobile
         run: flutter pub get
+
+      - name: Apply SafiRoute native branding
+        working-directory: mobile
+        run: |
+          dart run flutter_launcher_icons
+          dart run flutter_native_splash:create
 
       - name: Analyze Dart
         working-directory: mobile
