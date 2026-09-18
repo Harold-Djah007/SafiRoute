@@ -275,19 +275,26 @@ export async function hashPin(pin: string) {
 }
 
 export function waybillChecklist(waybill: SalesWaybill) {
-  const meaningfulLines = waybill.items.filter((item) => item.description.trim() || item.qty || item.remarks.trim());
-  const itemLinesValid =
-    meaningfulLines.length > 0 &&
-    meaningfulLines.every((item) => item.description.trim() && Number.isFinite(Number(item.qty)) && Number(item.qty) > 0);
+  const hasDescription = waybill.items.some((item) => item.description.trim());
   return [
-    { id: "customer", label: "Customer / deliver to", done: Boolean(waybill.deliverTo.trim()) },
-    { id: "address", label: "Delivery address", done: Boolean(waybill.deliveryAddress.trim()) },
-    { id: "item", label: "Product and quantity", done: itemLinesValid },
-    { id: "sales", label: "Sales name and signature", done: Boolean(waybill.authorisedBy.trim() && waybill.authorisedSignature) },
-    { id: "dispatch", label: "Dispatch name, vehicle and signature", done: Boolean(waybill.dispatchedBy.trim() && waybill.vehicleNumber.trim() && waybill.dispatchedSignature) },
-    { id: "customer-sign", label: "Customer name and signature", done: Boolean(waybill.receivedBy.trim() && waybill.customerSignature) },
-    { id: "proof", label: "GPS or reason", done: (waybill.latitude != null && waybill.longitude != null) || Boolean(waybill.gpsUnavailableReason.trim()) },
-    { id: "photo", label: "Delivery photo", done: Boolean(waybill.photo) },
+    { id: "customer", label: "Deliver to", done: Boolean(waybill.deliverTo.trim()) },
+    { id: "address", label: "Address", done: Boolean(waybill.deliveryAddress.trim()) },
+    { id: "item", label: "Description", done: hasDescription },
+    {
+      id: "sales",
+      label: "Authorised by and signature",
+      done: Boolean(waybill.authorisedBy.trim() && waybill.authorisedSignature),
+    },
+    {
+      id: "dispatch",
+      label: "Dispatched by and signature",
+      done: Boolean(waybill.dispatchedBy.trim() && waybill.dispatchedSignature),
+    },
+    {
+      id: "customer-sign",
+      label: "Received by and signature",
+      done: Boolean(waybill.receivedBy.trim() && waybill.customerSignature),
+    },
   ];
 }
 
