@@ -194,16 +194,6 @@ export default function SalesMobileSettingsPage() {
         </details>
         <details className="sales-settings-details">
           <summary className="sales-settings-row">
-            <span className="sales-settings-icon lime">▣</span>
-            <span className="sales-settings-copy"><b>Usual vehicle</b><small>Pre-fills new waybills</small></span>
-            <span className="sales-settings-value">{settings.vehicleNumber || "Not set"}</span><i>›</i>
-          </summary>
-          <div className="sales-settings-editor">
-            <label>Vehicle registration<input value={settings.vehicleNumber} onChange={(event) => setSettings({ ...settings, vehicleNumber: event.target.value.toUpperCase() })} placeholder="GT 0000-00" /></label>
-          </div>
-        </details>
-        <details className="sales-settings-details">
-          <summary className="sales-settings-row">
             <span className="sales-settings-icon gold">✎</span>
             <span className="sales-settings-copy"><b>Sales signature</b><small>Pre-fills Authorised by</small></span>
             <span className="sales-settings-value">{settings.authorisedSignature ? "Saved" : "Not saved"}</span><i>›</i>
