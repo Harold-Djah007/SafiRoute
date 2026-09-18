@@ -102,8 +102,8 @@ cd "$HOME\projects\SafiRoute\mobile"
 flutter create --platforms=android --org com.safisana --project-name safiroute .
 python tool/prepare_platforms.py
 flutter pub get
-dart run flutter_launcher_icons
-dart run flutter_native_splash:create
+dart run flutter_launcher_icons -f tool/icons-android.yaml
+dart run flutter_native_splash:create --path=tool/splash-android.yaml
 flutter analyze
 flutter test
 
@@ -129,8 +129,8 @@ cd mobile
 flutter create --platforms=ios --org com.safisana --project-name safiroute .
 python3 tool/prepare_platforms.py
 flutter pub get
-dart run flutter_launcher_icons
-dart run flutter_native_splash:create
+dart run flutter_launcher_icons -f tool/icons-ios.yaml
+dart run flutter_native_splash:create --path=tool/splash-ios.yaml
 flutter analyze
 flutter test
 flutter build ios --release --no-codesign \
