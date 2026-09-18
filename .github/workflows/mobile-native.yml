@@ -46,11 +46,11 @@ jobs:
         working-directory: mobile
         run: flutter pub get
 
-      - name: Apply SafiRoute native branding
+      - name: Apply SafiRoute Android branding
         working-directory: mobile
         run: |
-          dart run flutter_launcher_icons
-          dart run flutter_native_splash:create
+          dart run flutter_launcher_icons -f tool/icons-android.yaml
+          dart run flutter_native_splash:create --path=tool/splash-android.yaml
 
       - name: Analyze Dart
         working-directory: mobile
@@ -126,11 +126,11 @@ jobs:
         working-directory: mobile
         run: flutter pub get
 
-      - name: Apply SafiRoute native branding
+      - name: Apply SafiRoute iOS branding
         working-directory: mobile
         run: |
-          dart run flutter_launcher_icons
-          dart run flutter_native_splash:create
+          dart run flutter_launcher_icons -f tool/icons-ios.yaml
+          dart run flutter_native_splash:create --path=tool/splash-ios.yaml
 
       - name: Analyze Dart
         working-directory: mobile
