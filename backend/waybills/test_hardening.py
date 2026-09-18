@@ -178,11 +178,17 @@ class MobileAuthTests(TestCase):
         )
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["token_type"], "Mobile")
-        self.assertGreater(response.data["expires_in"], 0)
+        self.assertIn("expires_in", response.data)
         return response.data["token"]
 
     def test_mobile_token_authenticates_sales_user(self):
         token = self._mobile_token()
+        response = self.client.post(
+            "/api/auth/mobile-token/",
+            {"username": "mobile-sales", "password": "safiroute"},
+            format="json",
+        )
+        self.assertGreater(response.data["expires_in"], 0)
         self.client.credentials(HTTP_AUTHORIZATION=f"Mobile {token}")
         response = self.client.get("/api/me/")
         self.assertEqual(response.status_code, 200, response.data)
