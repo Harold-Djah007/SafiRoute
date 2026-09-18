@@ -157,7 +157,7 @@ class _EditorState extends State<Editor> {
     }
     final bytes = await controller.toPngBytes();
     if (bytes == null) return null;
-    return 'data:image/png;base64,' + base64Encode(bytes);
+    return 'data:image/png;base64,${base64Encode(bytes)}';
   }
 
   Future<Map<String, dynamic>> snapshot() async {
@@ -244,7 +244,7 @@ class _EditorState extends State<Editor> {
     final missingValues = missing();
     if (missingValues.isNotEmpty) {
       setState(
-        () => error = 'Please add: ' + missingValues.join(', ') + '.',
+        () => error = 'Please add: ${missingValues.join(', ')}.',
       );
       return;
     }
@@ -347,7 +347,7 @@ class _EditorState extends State<Editor> {
     final bytes = await file.readAsBytes();
     setState(
       () => waybill['photo'] =
-          'data:image/jpeg;base64,' + base64Encode(bytes),
+          'data:image/jpeg;base64,${base64Encode(bytes)}',
     );
     changed();
   }
@@ -509,8 +509,7 @@ class _EditorState extends State<Editor> {
                           enabled: !locked,
                           onChanged: changed,
                           decoration: InputDecoration(
-                            labelText:
-                                'Line ' + (index + 1).toString(),
+                            labelText: 'Line ${index + 1}',
                           ),
                         ),
                       ),
@@ -634,11 +633,9 @@ class _EditorState extends State<Editor> {
                 subtitle: Text(
                   waybill['lat'] == null
                       ? 'Not captured'
-                      : (waybill['lat'] as num)
-                              .toStringAsFixed(5) +
-                          ', ' +
-                          (waybill['lng'] as num)
-                              .toStringAsFixed(5),
+                      : [(waybill['lat'] as num).toStringAsFixed(5),
+                          (waybill['lng'] as num).toStringAsFixed(5)]
+                          .join(', '),
                 ),
                 trailing: locked
                     ? null
@@ -687,9 +684,7 @@ class _EditorState extends State<Editor> {
                 ),
                 child: Text(
                   waybill['syncStatus'] == 'synced'
-                      ? 'Verified on HQ as ' +
-                          (waybill['serverNumber'] ?? 'accepted')
-                              .toString()
+                      ? "Verified on HQ as ${waybill['serverNumber'] ?? 'accepted'}"
                       : 'Completed on this phone. Waiting to send to HQ.',
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
