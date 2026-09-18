@@ -87,6 +87,10 @@ class _HomePageState extends State<HomePage>
 
   Future<void> syncPending({bool force = false}) async {
     if (syncing || (!online && !force)) return;
+    if (await Api.token() == null) {
+      await logout();
+      return;
+    }
     setState(() => syncing = true);
     try {
       final local = await Store.all();
