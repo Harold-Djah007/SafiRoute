@@ -155,6 +155,126 @@ class SessionAuthTests(TestCase):
         self.assertEqual(blocked.status_code, 429)
 
 
+class MobileAuthTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.sales = User.objects.create_user(
+            "mobile-sales",
+            password="safiroute",
+            role=User.Role.SALES,
+        )
+        self.driver = User.objects.create_user(
+            "mobile-driver",
+            password="safiroute",
+            role=User.Role.DRIVER,
+        )
+        self.client = APIClient()
+
+    def _mobile_token(self):
+        response = self.client.post(
+            "/api/auth/mobile-token/",
+            {"username": "mobile-sales", "password": "safiroute"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["token_type"], "Mobile")
+        self.assertIn("expires_in", response.data)
+        return response.data["token"]
+
+    def test_mobile_token_authenticates_sales_user(self):
+        token = self._mobile_token()
+        response = self.client.post(
+            "/api/auth/mobile-token/",
+            {"username": "mobile-sales", "password": "safiroute"},
+            format="json",
+        )
+        self.assertGreater(response.data["expires_in"], 0)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Mobile {token}")
+        response = self.client.get("/api/me/")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["username"], "mobile-sales")
+
+    def test_mobile_token_endpoint_rejects_non_sales_role(self):
+        response = self.client.post(
+            "/api/auth/mobile-token/",
+            {"username": "mobile-driver", "password": "safiroute"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("Sales", response.data["detail"])
+
+    @override_settings(MOBILE_TOKEN_MAX_AGE_SECONDS=-1)
+    def test_mobile_token_expires(self):
+        token = self._mobile_token()
+        self.client.credentials(HTTP_AUTHORIZATION=f"Mobile {token}")
+        response = self.client.get("/api/me/")
+        self.assertEqual(response.status_code, 403)
+
+    def test_password_change_revokes_mobile_token(self):
+        token = self._mobile_token()
+        self.sales.set_password("new-safe-password")
+        self.sales.save(update_fields=["password"])
+        self.client.credentials(HTTP_AUTHORIZATION=f"Mobile {token}")
+        response = self.client.get("/api/me/")
+        self.assertEqual(response.status_code, 403)
+
+
+class ReferenceDataPermissionTests(TestCase):
+    def setUp(self):
+        self.sales = User.objects.create_user(
+            "reference-sales",
+            password="safiroute",
+            role=User.Role.SALES,
+        )
+        self.supervisor = User.objects.create_user(
+            "reference-supervisor",
+            password="safiroute",
+            role=User.Role.SUPERVISOR,
+        )
+
+    def test_sales_can_read_but_cannot_mutate_master_data(self):
+        cases = [
+            (
+                "/api/customers/",
+                {
+                    "name": "Protected Customer",
+                    "account_number": "REF-CUST-1",
+                    "delivery_address": "Accra",
+                },
+            ),
+            (
+                "/api/products/",
+                {
+                    "name": "Protected Product",
+                    "sku": "REF-PROD-1",
+                    "unit_of_measure": "bag",
+                },
+            ),
+            (
+                "/api/vehicles/",
+                {
+                    "registration_number": "GT-REF-1",
+                    "transport_company": "Safisana Ghana",
+                },
+            ),
+        ]
+
+        sales_client = APIClient()
+        sales_client.force_authenticate(self.sales)
+        for endpoint, payload in cases:
+            self.assertEqual(sales_client.get(endpoint).status_code, 200)
+            self.assertEqual(
+                sales_client.post(endpoint, payload, format="json").status_code,
+                403,
+            )
+
+        supervisor_client = APIClient()
+        supervisor_client.force_authenticate(self.supervisor)
+        for endpoint, payload in cases:
+            response = supervisor_client.post(endpoint, payload, format="json")
+            self.assertEqual(response.status_code, 201, response.data)
+
+
 class FingerprintTests(TestCase):
     def setUp(self):
         self.sales = User.objects.create_user("sales", password="safiroute", role=User.Role.SALES)

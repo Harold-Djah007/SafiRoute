@@ -91,6 +91,18 @@ type SalesBackup = {
   waybills: SalesWaybill[];
 };
 
+type EncryptedSalesBackup = {
+  app: "SafiRoute";
+  format: "sales-mobile-backup-v2";
+  cipher: "AES-GCM";
+  kdf: "PBKDF2-SHA256";
+  iterations: number;
+  exportedAt: string;
+  salt: string;
+  iv: string;
+  ciphertext: string;
+};
+
 const defaultSettings = (): SalesMobileSettings => ({
   id: "profile",
   phone: "",
@@ -192,7 +204,7 @@ export function createSalesWaybill(authorisedBy = "", settings?: SalesMobileSett
     authorisedBy,
     authorisedRemarks: "",
     dispatchedBy: "",
-    vehicleNumber: settings?.vehicleNumber || "",
+    vehicleNumber: "",
     receivedBy: "",
     receivedByRole: "",
     items: Array.from({ length: 3 }, emptyLine),
@@ -268,26 +280,96 @@ export async function refreshSalesReferences(): Promise<SalesMobileReferences> {
   }
 }
 
-export async function hashPin(pin: string) {
+const PIN_ITERATIONS = 210_000;
+
+function bytesToBase64(bytes: Uint8Array) {
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary);
+}
+
+function base64ToBytes(value: string) {
+  const binary = atob(value);
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
+}
+
+async function derivePin(pin: string, salt: Uint8Array, iterations: number) {
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(pin),
+    "PBKDF2",
+    false,
+    ["deriveBits"]
+  );
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", hash: "SHA-256", salt: toArrayBuffer(salt), iterations },
+    keyMaterial,
+    256
+  );
+  return new Uint8Array(bits);
+}
+
+async function legacyPinHash(pin: string) {
   const bytes = new TextEncoder().encode(`safiroute-sales-pin:${pin}`);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+export async function hashPin(pin: string) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const derived = await derivePin(pin, salt, PIN_ITERATIONS);
+  return `pbkdf2${PIN_ITERATIONS}${bytesToBase64(salt)}${bytesToBase64(derived)}`;
+}
+
+export async function verifyPin(pin: string, stored: string) {
+  if (!stored.startsWith("pbkdf2$")) {
+    return (await legacyPinHash(pin)) === stored;
+  }
+
+  const [, rawIterations, rawSalt, rawHash] = stored.split("$");
+  const iterations = Number(rawIterations);
+  if (!Number.isInteger(iterations) || iterations < 100_000 || !rawSalt || !rawHash) return false;
+
+  const expected = base64ToBytes(rawHash);
+  const actual = await derivePin(pin, base64ToBytes(rawSalt), iterations);
+  if (actual.length !== expected.length) return false;
+
+  let difference = 0;
+  for (let index = 0; index < actual.length; index += 1) {
+    difference |= actual[index] ^ expected[index];
+  }
+  return difference === 0;
+}
+
 export function waybillChecklist(waybill: SalesWaybill) {
-  const meaningfulLines = waybill.items.filter((item) => item.description.trim() || item.qty || item.remarks.trim());
-  const itemLinesValid =
-    meaningfulLines.length > 0 &&
-    meaningfulLines.every((item) => item.description.trim() && Number.isFinite(Number(item.qty)) && Number(item.qty) > 0);
+  const hasDescription = waybill.items.some((item) => item.description.trim());
   return [
-    { id: "customer", label: "Customer / deliver to", done: Boolean(waybill.deliverTo.trim()) },
-    { id: "address", label: "Delivery address", done: Boolean(waybill.deliveryAddress.trim()) },
-    { id: "item", label: "Product and quantity", done: itemLinesValid },
-    { id: "sales", label: "Sales name and signature", done: Boolean(waybill.authorisedBy.trim() && waybill.authorisedSignature) },
-    { id: "dispatch", label: "Dispatch name, vehicle and signature", done: Boolean(waybill.dispatchedBy.trim() && waybill.vehicleNumber.trim() && waybill.dispatchedSignature) },
-    { id: "customer-sign", label: "Customer name and signature", done: Boolean(waybill.receivedBy.trim() && waybill.customerSignature) },
-    { id: "proof", label: "GPS or reason", done: (waybill.latitude != null && waybill.longitude != null) || Boolean(waybill.gpsUnavailableReason.trim()) },
-    { id: "photo", label: "Delivery photo", done: Boolean(waybill.photo) },
+    { id: "customer", label: "Deliver to", done: Boolean(waybill.deliverTo.trim()) },
+    { id: "address", label: "Address", done: Boolean(waybill.deliveryAddress.trim()) },
+    { id: "item", label: "Description", done: hasDescription },
+    {
+      id: "sales",
+      label: "Authorised by and signature",
+      done: Boolean(waybill.authorisedBy.trim() && waybill.authorisedSignature),
+    },
+    {
+      id: "dispatch",
+      label: "Dispatched by and signature",
+      done: Boolean(waybill.dispatchedBy.trim() && waybill.dispatchedSignature),
+    },
+    {
+      id: "customer-sign",
+      label: "Received by and signature",
+      done: Boolean(waybill.receivedBy.trim() && waybill.customerSignature),
+    },
   ];
 }
 
@@ -326,9 +408,7 @@ function ingestPayload(waybill: SalesWaybill) {
     authorised_by_name: waybill.authorisedBy,
     authorised_remarks: waybill.authorisedRemarks,
     dispatched_by_name: waybill.dispatchedBy,
-    vehicle_registration: waybill.vehicleNumber,
     received_by: waybill.receivedBy,
-    received_by_role: waybill.receivedByRole,
     items: waybill.items
       .filter((item) => item.description.trim() || item.qty || item.remarks.trim())
       .map((item) => ({ product_name: item.description.trim(), ordered_qty: item.qty, notes: item.remarks })),
@@ -408,6 +488,79 @@ export function buildSalesBackup(settings: SalesMobileSettings, waybills: SalesW
     },
     waybills,
   };
+}
+
+const BACKUP_ITERATIONS = 310_000;
+
+async function backupKey(passphrase: string, salt: Uint8Array, iterations = BACKUP_ITERATIONS) {
+  if (passphrase.length < 8) throw new Error("Use at least 8 characters for the backup password.");
+  const material = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(passphrase),
+    "PBKDF2",
+    false,
+    ["deriveKey"]
+  );
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", hash: "SHA-256", salt: toArrayBuffer(salt), iterations },
+    material,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+}
+
+export async function encryptSalesBackup(payload: SalesBackup, passphrase: string): Promise<EncryptedSalesBackup> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await backupKey(passphrase, salt);
+  const encrypted = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: toArrayBuffer(iv) },
+    key,
+    toArrayBuffer(new TextEncoder().encode(JSON.stringify(payload)))
+  );
+  return {
+    app: "SafiRoute",
+    format: "sales-mobile-backup-v2",
+    cipher: "AES-GCM",
+    kdf: "PBKDF2-SHA256",
+    iterations: BACKUP_ITERATIONS,
+    exportedAt: new Date().toISOString(),
+    salt: bytesToBase64(salt),
+    iv: bytesToBase64(iv),
+    ciphertext: bytesToBase64(new Uint8Array(encrypted)),
+  };
+}
+
+export async function decryptSalesBackup(payload: unknown, passphrase: string): Promise<unknown> {
+  if (!payload || typeof payload !== "object") throw new Error("This is not a SafiRoute backup file.");
+  const backup = payload as Partial<EncryptedSalesBackup>;
+  if (
+    backup.app !== "SafiRoute" ||
+    backup.format !== "sales-mobile-backup-v2" ||
+    backup.cipher !== "AES-GCM" ||
+    backup.kdf !== "PBKDF2-SHA256" ||
+    typeof backup.iterations !== "number" ||
+    typeof backup.salt !== "string" ||
+    typeof backup.iv !== "string" ||
+    typeof backup.ciphertext !== "string"
+  ) {
+    return payload;
+  }
+  if (backup.iterations < 100_000 || backup.iterations > 1_000_000) {
+    throw new Error("This SafiRoute backup uses an unsupported key-derivation setting.");
+  }
+
+  try {
+    const salt = base64ToBytes(backup.salt);
+    const iv = base64ToBytes(backup.iv);
+    const ciphertext = base64ToBytes(backup.ciphertext);
+    const key = await backupKey(passphrase, salt, backup.iterations);
+    const clear = await crypto.subtle.decrypt({ name: "AES-GCM", iv: toArrayBuffer(iv) }, key, toArrayBuffer(ciphertext));
+    return JSON.parse(new TextDecoder().decode(clear)) as unknown;
+  } catch {
+    throw new Error("Backup password is incorrect or the backup file has been damaged.");
+  }
 }
 
 function isRestorableWaybill(value: unknown): value is SalesWaybill {

@@ -1,7 +1,7 @@
 import json
 from decimal import Decimal, InvalidOperation
 
-from django.contrib.auth import authenticate, login as django_login, logout as django_logout
+from django.contrib.auth import logout as django_logout
 from django.db.models import Count, Q
 from django.http import FileResponse, Http404
 from django.middleware.csrf import get_token
@@ -9,7 +9,6 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from rest_framework import status, viewsets
-from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action, api_view, authentication_classes, permission_classes
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -29,6 +28,7 @@ from .pdf import generate_waybill_pdf
 from .fingerprints import pdf_matches_stored_hash
 from .permissions import (
     HasWaybillAccess,
+    ReferenceDataPermission,
     can_approve,
     can_cancel,
     can_create,
@@ -101,28 +101,6 @@ def csrf_token(request):
 
 
 @api_view(["POST"])
-@authentication_classes([])
-@permission_classes([AllowAny])
-def login(request):
-    user = authenticate(
-        username=request.data.get("username"),
-        password=request.data.get("password"),
-    )
-    if not user or not user.is_active:
-        return Response({"detail": "Invalid credentials."}, status=status.HTTP_400_BAD_REQUEST)
-    django_login(request, user)
-    token, _ = Token.objects.get_or_create(user=user)
-    return Response(
-        {
-            "ok": True,
-            "session": True,
-            "token": token.key,
-            "user": UserSerializer(user).data,
-        }
-    )
-
-
-@api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def logout_view(request):
     django_logout(request)
@@ -168,6 +146,7 @@ def verify_waybill(request, token):
 
 
 class CustomerViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated, ReferenceDataPermission]
     queryset = Customer.objects.all()
     serializer_class = CustomerSerializer
     search_fields = ["name", "account_number", "phone"]
@@ -175,6 +154,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
 
 
 class ProductViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated, ReferenceDataPermission]
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
     search_fields = ["name", "sku"]
@@ -182,6 +162,7 @@ class ProductViewSet(viewsets.ModelViewSet):
 
 
 class VehicleViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated, ReferenceDataPermission]
     queryset = Vehicle.objects.all()
     serializer_class = VehicleSerializer
     search_fields = ["registration_number", "transport_company"]

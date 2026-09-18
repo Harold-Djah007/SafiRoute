@@ -62,7 +62,7 @@ export default function FieldHomePage() {
       if (filter === "completed" && item.status !== "completed") return false;
       if (filter === "pending" && !(item.status === "completed" && item.syncStatus !== "synced")) return false;
       if (!needle) return true;
-      return [item.localNumber, item.serverNumber, item.deliverTo, item.contactName, item.vehicleNumber]
+      return [item.localNumber, item.serverNumber, item.deliverTo, item.contactName]
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
@@ -170,7 +170,6 @@ export default function FieldHomePage() {
               <p>{item.serverNumber || item.localNumber}</p>
               <div className="sales-waybill-meta">
                 <span>{new Date(item.updatedAt).toLocaleDateString("en-GH", { day: "2-digit", month: "short" })}</span>
-                {item.vehicleNumber && <span>{item.vehicleNumber}</span>}
                 <b aria-hidden="true">›</b>
               </div>
             </Link>

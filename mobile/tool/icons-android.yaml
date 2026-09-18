@@ -1,0 +1,6 @@
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: assets/safiroute-icon.png
+  adaptive_icon_background: "#F4EFE2"
+  adaptive_icon_foreground: assets/safiroute-icon.png

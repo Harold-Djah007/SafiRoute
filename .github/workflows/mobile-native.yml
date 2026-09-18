@@ -1,6 +1,11 @@
-name: Native mobile builds
+name: Native mobile quality + builds
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "mobile/**"
+      - ".github/workflows/mobile-native.yml"
   pull_request:
     paths:
       - "mobile/**"
@@ -8,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       api_url:
-        description: "SafiRoute API base URL baked into this test build"
+        description: "HTTPS SafiRoute API base URL baked into release candidates"
         required: false
         default: "https://safiroute.invalid/api"
 
@@ -19,10 +24,10 @@ env:
   SAFIROUTE_API: ${{ github.event.inputs.api_url || 'https://safiroute.invalid/api' }}
 
 jobs:
-  android-apk:
-    name: Android APK
+  android:
+    name: Android test + APK + AAB
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
 
@@ -41,25 +46,68 @@ jobs:
         working-directory: mobile
         run: flutter pub get
 
+      - name: Apply SafiRoute Android branding
+        working-directory: mobile
+        run: |
+          dart run flutter_launcher_icons -f tool/icons-android.yaml
+          dart run flutter_native_splash:create --path=tool/splash-android.yaml
+
       - name: Analyze Dart
         working-directory: mobile
         run: flutter analyze
 
+      - name: Run Flutter tests
+        working-directory: mobile
+        run: flutter test
+
       - name: Build debug APK
         working-directory: mobile
-        run: flutter build apk --debug --dart-define=SAFIROUTE_API="$SAFIROUTE_API"
+        run: |
+          flutter build apk --debug \
+            --dart-define=SAFIROUTE_API="$SAFIROUTE_API"
 
-      - name: Upload Android APK
+      - name: Configure disposable CI release signing
+        working-directory: mobile
+        run: |
+          keytool -genkeypair -v \
+            -keystore android/app/ci-upload.jks \
+            -storepass ci-safiroute-password \
+            -keypass ci-safiroute-password \
+            -alias safiroute-ci \
+            -keyalg RSA -keysize 2048 -validity 2 \
+            -dname "CN=SafiRoute CI, OU=Engineering, O=Safisana, L=Accra, C=GH"
+          cat > android/key.properties <<'EOF'
+          storePassword=ci-safiroute-password
+          keyPassword=ci-safiroute-password
+          keyAlias=safiroute-ci
+          storeFile=ci-upload.jks
+          EOF
+          python3 tool/prepare_android_signing.py
+
+      - name: Build signed release-mode AAB candidate
+        working-directory: mobile
+        run: |
+          flutter build appbundle --release \
+            --dart-define=SAFIROUTE_API="$SAFIROUTE_API"
+
+      - name: Upload Android debug APK
         uses: actions/upload-artifact@v4
         with:
           name: SafiRoute-Android-debug
           path: mobile/build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
 
-  ios-app:
-    name: iOS unsigned app
+      - name: Upload Android release-mode AAB candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: SafiRoute-Android-AAB-release-candidate-NOT-FOR-PLAY
+          path: mobile/build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+
+  ios:
+    name: iOS test + unsigned release
     runs-on: macos-15
-    timeout-minutes: 40
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -78,17 +126,32 @@ jobs:
         working-directory: mobile
         run: flutter pub get
 
+      - name: Apply SafiRoute iOS branding
+        working-directory: mobile
+        run: |
+          dart run flutter_launcher_icons -f tool/icons-ios.yaml
+          dart run flutter_native_splash:create --path=tool/splash-ios.yaml
+
       - name: Analyze Dart
         working-directory: mobile
         run: flutter analyze
 
+      - name: Run Flutter tests
+        working-directory: mobile
+        run: flutter test
+
       - name: Build iOS without signing
         working-directory: mobile
-        run: flutter build ios --release --no-codesign --dart-define=SAFIROUTE_API="$SAFIROUTE_API"
+        run: |
+          flutter build ios --release --no-codesign \
+            --dart-define=SAFIROUTE_API="$SAFIROUTE_API"
 
       - name: Archive unsigned iOS app
         working-directory: mobile
-        run: ditto -c -k --sequesterRsrc --keepParent build/ios/iphoneos/Runner.app build/SafiRoute-iOS-unsigned.zip
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent \
+            build/ios/iphoneos/Runner.app \
+            build/SafiRoute-iOS-unsigned.zip
 
       - name: Upload iOS app
         uses: actions/upload-artifact@v4
