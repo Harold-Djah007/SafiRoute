@@ -50,7 +50,7 @@ class Api {
     while (next.endsWith('/')) {
       next = next.substring(0, next.length - 1);
     }
-    return next.endsWith('/api') ? next : next + '/api';
+    return next.endsWith('/api') ? next : '$next/api';
   }
 
   static Future<String> base() async {
@@ -76,10 +76,10 @@ class Api {
     final headers = <String, String>{'Content-Type': 'application/json'};
     if (auth) {
       final value = await token();
-      if (value != null) headers['Authorization'] = 'Token ' + value;
+      if (value != null) headers['Authorization'] = 'Token $value';
     }
 
-    final uri = Uri.parse((await base()) + path);
+    final uri = Uri.parse('${await base()}$path');
     final http.Response response;
     if (method == 'POST') {
       response = await http
@@ -99,7 +99,7 @@ class Api {
     if (response.statusCode >= 400) {
       throw Exception(
         data['detail']?.toString() ??
-            'Request failed (' + response.statusCode.toString() + ')',
+            'Request failed (${response.statusCode})',
       );
     }
     return data;
@@ -171,9 +171,9 @@ class Api {
         'gps_unavailable_reason': waybill['gpsUnavailableReason'],
         'photo': waybill['photo'],
         'delivery_notes':
-            'Authorised ' + (waybill['authorisedDate'] ?? '').toString() +
-            '; Dispatched ' + (waybill['dispatchedDate'] ?? '').toString() +
-            '; Received ' + (waybill['receivedDate'] ?? '').toString(),
+            "Authorised ${waybill['authorisedDate'] ?? ''}; "
+            "Dispatched ${waybill['dispatchedDate'] ?? ''}; "
+            "Received ${waybill['receivedDate'] ?? ''}",
         'device_timestamp':
             waybill['completedAt'] ?? waybill['updatedAt'],
       },
@@ -241,7 +241,7 @@ Map<String, dynamic> blankWaybill(String salesName) {
   final now = DateTime.now().toUtc().toIso8601String();
   final suffix = id.split('-').first.substring(0, 5).toUpperCase();
   final localNumber =
-      'SR-' + dateNow().replaceAll('-', '') + '-' + suffix;
+      "SR-${dateNow().replaceAll('-', '')}-$suffix";
 
   return {
     'id': id,
