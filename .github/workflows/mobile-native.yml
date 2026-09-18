@@ -66,7 +66,25 @@ jobs:
           flutter build apk --debug \
             --dart-define=SAFIROUTE_API="$SAFIROUTE_API"
 
-      - name: Build release-mode AAB candidate
+      - name: Configure disposable CI release signing
+        working-directory: mobile
+        run: |
+          keytool -genkeypair -v \
+            -keystore android/app/ci-upload.jks \
+            -storepass ci-safiroute-password \
+            -keypass ci-safiroute-password \
+            -alias safiroute-ci \
+            -keyalg RSA -keysize 2048 -validity 2 \
+            -dname "CN=SafiRoute CI, OU=Engineering, O=Safisana, L=Accra, C=GH"
+          cat > android/key.properties <<'EOF'
+          storePassword=ci-safiroute-password
+          keyPassword=ci-safiroute-password
+          keyAlias=safiroute-ci
+          storeFile=ci-upload.jks
+          EOF
+          python3 tool/prepare_android_signing.py
+
+      - name: Build signed release-mode AAB candidate
         working-directory: mobile
         run: |
           flutter build appbundle --release \
