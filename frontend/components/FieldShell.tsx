@@ -7,7 +7,7 @@ import { bootstrapSession, logoutRequest, type User } from "@/lib/api";
 import {
   flushSalesWaybills,
   getSalesMobileSettings,
-  hashPin,
+  verifyPin,
   listSalesWaybills,
   type SalesMobileSettings,
 } from "@/lib/sales-mobile";
@@ -111,7 +111,7 @@ export function FieldShell({ children }: { children: React.ReactNode }) {
       setLocked(false);
       return;
     }
-    if ((await hashPin(pin.trim())) !== settings.pinHash) {
+    if (!(await verifyPin(pin.trim(), settings.pinHash))) {
       setPinError("That PIN does not match.");
       return;
     }
