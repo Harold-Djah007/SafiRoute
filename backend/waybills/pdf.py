@@ -241,7 +241,7 @@ def generate_waybill_pdf(waybill):
 
     signature_fields = (
         (waybill.authorised_signature, "Sales / Authorised signature"),
-        (waybill.driver_signature, "Dispatch signature"),
+        (waybill.dispatched_signature, "Dispatch signature"),
         (waybill.customer_signature, "Customer / Received-by signature"),
     )
     signature_cells = []
