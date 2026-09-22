@@ -100,6 +100,90 @@ def decrypt_payload(blob: bytes) -> dict:
     return payload
 
 
+def normalise_legacy_fixtures(fixtures: list[dict]) -> list[dict]:
+    """Make pre-Sales-only backups loadable after the workflow simplification."""
+
+    retired_waybill_fields = {
+        "approved_by",
+        "approved_at",
+        "warehouse_officer",
+        "loaded_at",
+        "driver",
+        "vehicle",
+        "driver_phone",
+        "dispatch_at",
+        "dispatch_lat",
+        "dispatch_lng",
+        "dispatch_gps_accuracy",
+        "customer_rep_role",
+        "failure_reason",
+        "cancellation_reason",
+    }
+    retired_item_fields = {
+        "sku",
+        "unit_of_measure",
+        "ordered_qty",
+        "loaded_qty",
+        "delivered_qty",
+        "rejected_qty",
+        "batch_number",
+    }
+    status_map = {
+        "pending_approval": "draft",
+        "approved": "draft",
+        "loaded": "draft",
+        "dispatched": "draft",
+        "in_transit": "draft",
+        "delivered": "completed",
+        "partially_delivered": "completed",
+        "delivery_failed": "completed",
+        "cancelled": "voided",
+    }
+
+    normalised = []
+    for entry in fixtures or []:
+        if not isinstance(entry, dict):
+            continue
+        model = entry.get("model")
+        if model == "waybills.vehicle":
+            continue
+
+        item = dict(entry)
+        fields = dict(item.get("fields") or {})
+
+        if model == "waybills.user":
+            if fields.get("role") in {"supervisor", "warehouse", "driver", "finance"}:
+                fields["role"] = "sales"
+                fields["is_active"] = False
+
+        elif model == "waybills.waybill":
+            if "driver_signature" in fields and "dispatched_signature" not in fields:
+                fields["dispatched_signature"] = fields.pop("driver_signature")
+            if "customer_rep_name" in fields and "received_by_name" not in fields:
+                fields["received_by_name"] = fields.pop("customer_rep_name")
+            fields["status"] = status_map.get(fields.get("status"), fields.get("status"))
+            for key in retired_waybill_fields:
+                fields.pop(key, None)
+
+        elif model == "waybills.waybillitem":
+            notes = (fields.get("notes") or "").strip()
+            extras = []
+            qty = fields.get("ordered_qty")
+            if qty not in (None, "", "0", "0.0", "0.00", 0):
+                extras.append(f"Qty: {qty}")
+            batch = fields.get("batch_number")
+            if batch:
+                extras.append(f"Batch: {batch}")
+            if extras:
+                fields["notes"] = " · ".join(part for part in [notes, *extras] if part)[:240]
+            for key in retired_item_fields:
+                fields.pop(key, None)
+
+        item["fields"] = fields
+        normalised.append(item)
+    return normalised
+
+
 def write_encrypted_backup(destination: Path) -> Path:
     destination.parent.mkdir(parents=True, exist_ok=True)
     blob = encrypt_payload(build_payload())
@@ -132,7 +216,7 @@ def restore_encrypted_backup(source: Path, *, replace: bool = True) -> dict:
         Token.objects.all().delete()
     fixture_path = source.with_suffix(".restore.json")
     try:
-        fixture_path.write_text(json.dumps(payload["fixtures"]), encoding="utf-8")
+        fixture_path.write_text(json.dumps(normalise_legacy_fixtures(payload["fixtures"])), encoding="utf-8")
         call_command("loaddata", str(fixture_path))
     finally:
         if fixture_path.exists():
