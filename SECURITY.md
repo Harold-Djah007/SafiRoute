@@ -4,7 +4,7 @@ SafiRoute handles operational delivery records, signatures, GPS data, photos, an
 
 ## Supported code
 
-Security fixes are applied to the current production branch and the latest release candidate only. The supported field clients are the Sales PWA and the native Android/iOS Sales app; retired driver-oriented prototypes are not supported.
+Security fixes are applied to the current production branch and the latest release candidate only. The supported clients are the Sales website, Sales PWA, and native Android/iOS Sales app. Retired supervisor, warehouse, driver, and finance workflows are not supported.
 
 ## Reporting a vulnerability
 
