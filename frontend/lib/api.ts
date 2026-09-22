@@ -188,7 +188,7 @@ function readOfflineUser(): User | null {
   if (!raw) return null;
   try {
     const user = JSON.parse(raw) as User;
-    return user?.role === "sales" ? user : null;
+    return user?.role === "sales" || user?.role === "admin" ? user : null;
   } catch {
     localStorage.removeItem(OFFLINE_USER_KEY);
     return null;
@@ -202,7 +202,7 @@ export function saveSession(user: User) {
   // Sales identity lets an installed PWA reopen offline after the browser has
   // discarded sessionStorage. Server writes still require the HttpOnly Django
   // session once connectivity returns.
-  if (user.role === "sales") localStorage.setItem(OFFLINE_USER_KEY, JSON.stringify(user));
+  if (user.role === "sales" || user.role === "admin") localStorage.setItem(OFFLINE_USER_KEY, JSON.stringify(user));
   else localStorage.removeItem(OFFLINE_USER_KEY);
   localStorage.removeItem("safiroute_token");
   localStorage.removeItem("safiroute_user");
