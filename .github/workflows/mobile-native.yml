@@ -17,6 +17,10 @@ on:
         required: false
         default: "https://safiroute.invalid/api"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
