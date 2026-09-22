@@ -14,10 +14,11 @@ SafiRoute is Safisana Ghana's digital waybill system for the **Sales team**. It 
 | `docs/` | Release gates, recovery runbook and project blueprint |
 | `assets/` | SafiRoute logo and application icon |
 
-The mobile/PWA waybill experience is **Sales-only**. There is no driver mobile workflow in the supported product.
+SafiRoute is **Sales-only on both web and mobile**. The only operational account is a Sales User. A Sales Administrator can manage/oversee the Sales system. Authorised by, Dispatched by, and Received by are waybill sign-off fields, not separate SafiRoute accounts.
 
 ## Current capabilities
 
+- Sales-only website and native/PWA mobile apps
 - paper-style digital Safisana waybill
 - offline drafts and completion
 - three line-style signatures
