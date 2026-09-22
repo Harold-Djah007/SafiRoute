@@ -80,7 +80,7 @@ def verify_waybill(request, token):
         "pdf_version": waybill.pdf_version,
         "item_count": waybill.items.count(),
         "has_authorised_signature": bool(waybill.authorised_signature),
-        "has_dispatched_signature": bool(waybill.driver_signature),
+        "has_dispatched_signature": bool(waybill.dispatched_signature),
         "has_received_signature": bool(waybill.customer_signature),
         "has_gps": waybill.delivery_lat is not None and waybill.delivery_lng is not None,
         "photo_count": waybill.photos.count(),
@@ -119,7 +119,7 @@ class WaybillViewSet(viewsets.ModelViewSet):
         "customer__account_number",
         "authorised_by_name",
         "dispatched_by_name",
-        "customer_rep_name",
+        "received_by_name",
     ]
     filterset_fields = ["status", "sync_status", "customer"]
     ordering_fields = ["created_at", "updated_at", "delivery_at"]
@@ -170,7 +170,6 @@ class WaybillViewSet(viewsets.ModelViewSet):
             draft=Count("id", filter=Q(status=Waybill.Status.DRAFT)),
             completed=Count("id", filter=Q(status=Waybill.Status.COMPLETED)),
             voided=Count("id", filter=Q(status=Waybill.Status.VOIDED)),
-            waiting_sync=Count("id", filter=~Q(sync_status=Waybill.SyncStatus.SYNCED)),
         )
         today = timezone.localdate()
         today_qs = qs.filter(created_at__date=today)
