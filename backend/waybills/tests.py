@@ -157,7 +157,7 @@ class SalesWaybillTests(TestCase):
         self.assertEqual(waybill.dispatched_by_name, "Ama Mensah")
         self.assertEqual(waybill.customer_rep_name, "Adwoa Customer")
         self.assertTrue(waybill.authorised_signature)
-        self.assertTrue(waybill.driver_signature)
+        self.assertTrue(waybill.dispatched_signature)
         self.assertTrue(waybill.customer_signature)
         self.assertTrue(waybill.pdf_file)
         self.assertEqual(waybill.photos.count(), 1)
