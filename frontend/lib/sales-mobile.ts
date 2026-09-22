@@ -35,9 +35,7 @@ export type SalesWaybill = {
   authorisedBy: string;
   authorisedRemarks: string;
   dispatchedBy: string;
-  vehicleNumber: string;
   receivedBy: string;
-  receivedByRole: string;
   items: MobileLine[];
   authorisedSignature: string | null;
   dispatchedSignature: string | null;
@@ -87,7 +85,7 @@ type SalesBackup = {
   app: "SafiRoute";
   format: "sales-mobile-backup-v1";
   exportedAt: string;
-  settings?: Partial<Pick<SalesMobileSettings, "phone" | "vehicleNumber" | "authorisedSignature">>;
+  settings?: Partial<Pick<SalesMobileSettings, "phone" | "authorisedSignature">>;
   waybills: SalesWaybill[];
 };
 
@@ -106,7 +104,6 @@ type EncryptedSalesBackup = {
 const defaultSettings = (): SalesMobileSettings => ({
   id: "profile",
   phone: "",
-  vehicleNumber: "",
   authorisedSignature: null,
   pinHash: null,
   lastBackupAt: null,
@@ -204,9 +201,7 @@ export function createSalesWaybill(authorisedBy = "", settings?: SalesMobileSett
     authorisedBy,
     authorisedRemarks: "",
     dispatchedBy: "",
-    vehicleNumber: "",
     receivedBy: "",
-    receivedByRole: "",
     items: Array.from({ length: 3 }, emptyLine),
     authorisedSignature: settings?.authorisedSignature || null,
     dispatchedSignature: null,
@@ -483,7 +478,6 @@ export function buildSalesBackup(settings: SalesMobileSettings, waybills: SalesW
     exportedAt: new Date().toISOString(),
     settings: {
       phone: settings.phone,
-      vehicleNumber: settings.vehicleNumber,
       authorisedSignature: settings.authorisedSignature,
     },
     waybills,
@@ -590,7 +584,6 @@ export async function restoreSalesBackup(payload: unknown) {
   const restoredSettings = await saveSalesMobileSettings({
     ...current,
     phone: typeof backup.settings?.phone === "string" ? backup.settings.phone : current.phone,
-    vehicleNumber: typeof backup.settings?.vehicleNumber === "string" ? backup.settings.vehicleNumber : current.vehicleNumber,
     authorisedSignature:
       typeof backup.settings?.authorisedSignature === "string" || backup.settings?.authorisedSignature === null
         ? backup.settings.authorisedSignature
