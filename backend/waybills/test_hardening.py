@@ -163,10 +163,10 @@ class MobileAuthTests(TestCase):
             password="safiroute",
             role=User.Role.SALES,
         )
-        self.driver = User.objects.create_user(
-            "mobile-driver",
+        self.legacy_user = User.objects.create_user(
+            "legacy-non-sales",
             password="safiroute",
-            role=User.Role.DRIVER,
+            role="driver",
         )
         self.client = APIClient()
 
@@ -197,7 +197,7 @@ class MobileAuthTests(TestCase):
     def test_mobile_token_endpoint_rejects_non_sales_role(self):
         response = self.client.post(
             "/api/auth/mobile-token/",
-            {"username": "mobile-driver", "password": "safiroute"},
+            {"username": "legacy-non-sales", "password": "safiroute"},
             format="json",
         )
         self.assertEqual(response.status_code, 403)
@@ -226,10 +226,10 @@ class ReferenceDataPermissionTests(TestCase):
             password="safiroute",
             role=User.Role.SALES,
         )
-        self.supervisor = User.objects.create_user(
-            "reference-supervisor",
+        self.admin = User.objects.create_user(
+            "reference-admin",
             password="safiroute",
-            role=User.Role.SUPERVISOR,
+            role=User.Role.ADMIN,
         )
 
     def test_sales_can_read_but_cannot_mutate_master_data(self):
@@ -250,13 +250,6 @@ class ReferenceDataPermissionTests(TestCase):
                     "unit_of_measure": "bag",
                 },
             ),
-            (
-                "/api/vehicles/",
-                {
-                    "registration_number": "GT-REF-1",
-                    "transport_company": "Safisana Ghana",
-                },
-            ),
         ]
 
         sales_client = APIClient()
@@ -268,10 +261,10 @@ class ReferenceDataPermissionTests(TestCase):
                 403,
             )
 
-        supervisor_client = APIClient()
-        supervisor_client.force_authenticate(self.supervisor)
+        admin_client = APIClient()
+        admin_client.force_authenticate(self.admin)
         for endpoint, payload in cases:
-            response = supervisor_client.post(endpoint, payload, format="json")
+            response = admin_client.post(endpoint, payload, format="json")
             self.assertEqual(response.status_code, 201, response.data)
 
 
@@ -283,7 +276,7 @@ class FingerprintTests(TestCase):
         self.waybill = Waybill.objects.create(
             customer=self.customer,
             created_by=self.sales,
-            status=Waybill.Status.DELIVERED,
+            status=Waybill.Status.COMPLETED,
             deliver_to="Test Farm",
             customer_rep_name="Kojo",
         )
@@ -314,7 +307,7 @@ class FingerprintTests(TestCase):
 
     def test_audit_chain_detects_tamper(self):
         record_audit(self.waybill, self.sales, "created", to_status="draft")
-        record_audit(self.waybill, self.sales, "completed", "draft", "delivered")
+        record_audit(self.waybill, self.sales, "completed", "draft", "completed")
         ok, detail = verify_audit_chain(self.waybill)
         self.assertTrue(ok, detail)
         entry = self.waybill.audit_logs.order_by("id").first()
