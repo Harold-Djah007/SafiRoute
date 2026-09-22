@@ -130,29 +130,13 @@ class SessionAuthTests(TestCase):
         )
         self.assertEqual(blocked.status_code, 429)
 
-    def test_api_token_login_is_available_and_rate_limited(self):
-        token_res = self.client.post(
+    def test_retired_long_lived_token_login_is_not_exposed(self):
+        response = self.client.post(
             "/api/auth/token/",
             {"username": "sales", "password": "safiroute"},
             format="json",
         )
-        self.assertEqual(token_res.status_code, 200, token_res.data)
-        self.assertTrue(token_res.data["token"])
-
-        cache.clear()
-        for _ in range(10):
-            res = self.client.post(
-                "/api/auth/token/",
-                {"username": "sales", "password": "wrong-password"},
-                format="json",
-            )
-            self.assertEqual(res.status_code, 400)
-        blocked = self.client.post(
-            "/api/auth/token/",
-            {"username": "sales", "password": "wrong-password"},
-            format="json",
-        )
-        self.assertEqual(blocked.status_code, 429)
+        self.assertEqual(response.status_code, 404)
 
 
 class MobileAuthTests(TestCase):
