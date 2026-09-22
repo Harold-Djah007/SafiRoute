@@ -6,7 +6,7 @@ The app mirrors the Safisana paper waybill while adding digital safeguards:
 
 - Sales-only authentication
 - encrypted offline SQLite storage for waybill data
-- secure OS credential storage for the API token and local encryption key
+- secure OS credential storage for the short-lived mobile session credential and local encryption key
 - paper-style waybill entry
 - Authorised / Dispatch / Received signature lines
 - optional GPS and delivery photo
