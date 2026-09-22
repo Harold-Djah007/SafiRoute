@@ -47,7 +47,7 @@ class WaybillItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = WaybillItem
-        fields = ["id", "product", "product_name", "ordered_qty", "notes"]
+        fields = ["id", "product", "product_name", "notes"]
 
 
 class WaybillPhotoSerializer(serializers.ModelSerializer):
@@ -88,7 +88,7 @@ class WaybillSerializer(serializers.ModelSerializer):
     created_by_detail = UserSerializer(source="created_by", read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     verification_url = serializers.SerializerMethodField()
-    received_by = serializers.CharField(source="customer_rep_name", read_only=True)
+    received_by = serializers.CharField(source="received_by_name", read_only=True)
 
     class Meta:
         model = Waybill
@@ -222,8 +222,6 @@ class WaybillSerializer(serializers.ModelSerializer):
             product = item.get("product")
             if not product and not name:
                 continue
-            if item.get("ordered_qty") in (None, ""):
-                item["ordered_qty"] = 1
             WaybillItem.objects.create(waybill=waybill, **item)
 
 
