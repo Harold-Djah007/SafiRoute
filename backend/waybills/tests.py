@@ -74,7 +74,6 @@ class SalesWaybillTests(TestCase):
             waybill=waybill,
             product=self.product,
             product_name=self.product.name,
-            ordered_qty=1,
         )
         self._auth(self.sales)
         response = self.client.patch(
@@ -155,7 +154,7 @@ class SalesWaybillTests(TestCase):
         self.assertEqual(waybill.created_by, self.sales)
         self.assertEqual(waybill.authorised_by_name, "Kwame Asante")
         self.assertEqual(waybill.dispatched_by_name, "Ama Mensah")
-        self.assertEqual(waybill.customer_rep_name, "Adwoa Customer")
+        self.assertEqual(waybill.received_by_name, "Adwoa Customer")
         self.assertTrue(waybill.authorised_signature)
         self.assertTrue(waybill.dispatched_signature)
         self.assertTrue(waybill.customer_signature)
