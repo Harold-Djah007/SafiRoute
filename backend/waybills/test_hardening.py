@@ -278,9 +278,9 @@ class FingerprintTests(TestCase):
             created_by=self.sales,
             status=Waybill.Status.COMPLETED,
             deliver_to="Test Farm",
-            customer_rep_name="Kojo",
+            received_by_name="Kojo",
         )
-        WaybillItem.objects.create(waybill=self.waybill, product=self.product, ordered_qty=4, delivered_qty=4)
+        WaybillItem.objects.create(waybill=self.waybill, product=self.product)
 
     def test_pdf_fingerprint_is_stored_and_printed(self):
         generate_waybill_pdf(self.waybill)
@@ -330,7 +330,7 @@ class BackupRestoreTests(TestCase):
             sales_order_ref="SO-BACKUP",
             deliver_to="Backup Farm",
         )
-        WaybillItem.objects.create(waybill=self.waybill, product=self.product, ordered_qty=7)
+        WaybillItem.objects.create(waybill=self.waybill, product=self.product)
         self.waybill.pdf_file.save("note.txt", ContentFile(b"waybill-media"), save=True)
 
     def test_encrypt_backup_and_restore_roundtrip(self):
