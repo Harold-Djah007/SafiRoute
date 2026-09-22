@@ -9,7 +9,6 @@ duplicate.
 from __future__ import annotations
 
 import base64
-from decimal import Decimal, InvalidOperation
 from uuid import UUID
 
 from django.core.files.base import ContentFile
@@ -31,21 +30,6 @@ def _client_uuid(value):
         return UUID(str(value))
     except (TypeError, ValueError) as exc:
         raise ValidationError({"client_uuid": "A valid client UUID is required."}) from exc
-
-
-def _quantity(value):
-    # The physical Safisana waybill does not have a separate quantity column.
-    # When Sales writes the quantity as part of the description, retain one
-    # logical line item server-side instead of forcing an extra phone field.
-    if value in (None, ""):
-        return Decimal("1")
-    try:
-        qty = Decimal(str(value))
-    except (InvalidOperation, TypeError) as exc:
-        raise ValidationError({"items": f"Invalid quantity: {value}"}) from exc
-    if qty <= 0:
-        raise ValidationError({"items": "Quantity must be greater than zero."})
-    return qty
 
 
 def _optional_decimal(value, field):
@@ -132,15 +116,13 @@ def _ingest_sales_waybill(request):
         if not isinstance(raw, dict):
             continue
         description = (raw.get("product_name") or "").strip()
-        qty_value = raw.get("ordered_qty")
-        if not description and qty_value in (None, ""):
+        if not description and not (raw.get("notes") or "").strip():
             continue
         if not description:
             raise ValidationError({"items": "Each line needs a description."})
         lines.append(
             {
                 "product_name": description[:200],
-                "ordered_qty": _quantity(qty_value),
                 "notes": (raw.get("notes") or "")[:240],
             }
         )
@@ -187,7 +169,7 @@ def _ingest_sales_waybill(request):
         authorised_by_name=authorised_by[:160],
         authorised_remarks=data.get("authorised_remarks") or "",
         dispatched_by_name=dispatched_by[:160],
-        customer_rep_name=received_by[:160],
+        received_by_name=received_by[:160],
         delivery_notes=data.get("delivery_notes") or "",
         delivery_at=timezone.now(),
         delivery_device_at=device_timestamp,
@@ -205,7 +187,6 @@ def _ingest_sales_waybill(request):
         WaybillItem.objects.create(
             waybill=waybill,
             product_name=line["product_name"],
-            ordered_qty=line["ordered_qty"],
             notes=line["notes"],
         )
 
