@@ -52,7 +52,6 @@ export type SalesWaybill = {
 export type SalesMobileSettings = {
   id: "profile";
   phone: string;
-  vehicleNumber: string;
   authorisedSignature: string | null;
   pinHash: string | null;
   lastBackupAt: string | null;
