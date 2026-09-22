@@ -15,32 +15,25 @@ def _qty(value):
 
 
 def canonical_payload(waybill) -> dict:
-    items = []
-    for item in waybill.items.all().order_by("id"):
-        items.append(
-            {
-                "product_name": item.product_name,
-                "sku": item.sku,
-                "ordered_qty": _qty(item.ordered_qty),
-                "loaded_qty": _qty(item.loaded_qty),
-                "delivered_qty": _qty(item.delivered_qty),
-                "rejected_qty": _qty(item.rejected_qty),
-                "batch_number": item.batch_number,
-                "notes": item.notes,
-            }
-        )
+    items = [
+        {
+            "description": item.product_name,
+            "remarks": item.notes,
+        }
+        for item in waybill.items.all().order_by("id")
+    ]
     return {
         "waybill_number": waybill.waybill_number,
         "status": waybill.status,
-        "customer": waybill.customer.name if waybill.customer_id else "",
-        "deliver_to": waybill.deliver_to,
+        "deliver_to": waybill.deliver_to or (waybill.customer.name if waybill.customer_id else ""),
+        "delivery_contact_name": waybill.delivery_contact_name,
+        "delivery_address_text": waybill.delivery_address_text,
         "contact_phone": waybill.contact_phone,
-        "branch": waybill.branch,
-        "sales_order_ref": waybill.sales_order_ref,
-        "invoice_ref": waybill.invoice_ref,
+        "document_date": str(waybill.document_date or ""),
         "authorised_by_name": waybill.authorised_by_name,
+        "authorised_remarks": waybill.authorised_remarks,
         "dispatched_by_name": waybill.dispatched_by_name,
-        "customer_rep_name": waybill.customer_rep_name,
+        "received_by": waybill.customer_rep_name,
         "delivery_notes": waybill.delivery_notes,
         "delivery_lat": _qty(waybill.delivery_lat),
         "delivery_lng": _qty(waybill.delivery_lng),
