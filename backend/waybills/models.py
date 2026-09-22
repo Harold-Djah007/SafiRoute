@@ -144,7 +144,7 @@ class Waybill(models.Model):
     customer_rep_role = models.CharField(max_length=80, blank=True)
     authorised_signature = models.ImageField(upload_to="signatures/", blank=True, null=True)
     customer_signature = models.ImageField(upload_to="signatures/", blank=True, null=True)
-    driver_signature = models.ImageField(upload_to="signatures/", blank=True, null=True)
+    dispatched_signature = models.ImageField(upload_to="signatures/", blank=True, null=True)
     delivery_notes = models.TextField(blank=True)
     failure_reason = models.TextField(blank=True)
     cancellation_reason = models.TextField(blank=True)
