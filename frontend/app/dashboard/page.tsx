@@ -11,7 +11,6 @@ type Dash = {
     draft: number;
     completed: number;
     voided: number;
-    waiting_sync: number;
   };
   today: { created: number; completed: number };
   recent: WaybillList[];
@@ -34,7 +33,7 @@ export default function DashboardPage() {
     ["Total waybills", data?.counts.total ?? "—", "/waybills"],
     ["Drafts", data?.counts.draft ?? "—", "/waybills?status=draft"],
     ["Completed", data?.counts.completed ?? "—", "/waybills?status=completed"],
-    ["Waiting to sync", data?.counts.waiting_sync ?? "—", "/waybills"],
+    ["Voided", data?.counts.voided ?? "—", "/waybills?status=voided"],
   ] as const;
 
   return (
