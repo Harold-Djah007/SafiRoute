@@ -15,7 +15,7 @@ from django.core.files.storage import default_storage
 from io import StringIO
 
 BACKUP_VERSION = 1
-APPS_TO_DUMP = ["waybills", "authtoken"]
+APPS_TO_DUMP = ["waybills"]
 
 
 def backup_key() -> bytes:
@@ -205,15 +205,12 @@ def restore_encrypted_backup(source: Path, *, replace: bool = True) -> dict:
             WaybillPhoto,
         )
 
-        from rest_framework.authtoken.models import Token
-
         WaybillPhoto.objects.all().delete()
         WaybillItem.objects.all().delete()
         AuditLog.objects.all().delete()
         Waybill.objects.all().delete()
         Customer.objects.all().delete()
         Product.objects.all().delete()
-        Token.objects.all().delete()
     fixture_path = source.with_suffix(".restore.json")
     try:
         fixture_path.write_text(json.dumps(normalise_legacy_fixtures(payload["fixtures"])), encoding="utf-8")
