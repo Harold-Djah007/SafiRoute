@@ -197,7 +197,7 @@ def _ingest_sales_waybill(request):
         gps_unavailable_reason=gps_reason[:240],
     )
     waybill.authorised_signature = authorised_signature
-    waybill.driver_signature = dispatch_signature
+    waybill.dispatched_signature = dispatch_signature
     waybill.customer_signature = customer_signature
     waybill.save()
 
