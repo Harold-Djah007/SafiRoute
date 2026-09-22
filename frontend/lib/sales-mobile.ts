@@ -319,7 +319,7 @@ async function legacyPinHash(pin: string) {
 export async function hashPin(pin: string) {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const derived = await derivePin(pin, salt, PIN_ITERATIONS);
-  return `pbkdf2${PIN_ITERATIONS}${bytesToBase64(salt)}${bytesToBase64(derived)}`;
+  return ["pbkdf2", String(PIN_ITERATIONS), bytesToBase64(salt), bytesToBase64(derived)].join("$");
 }
 
 export async function verifyPin(pin: string, stored: string) {
