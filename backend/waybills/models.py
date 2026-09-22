@@ -54,15 +54,6 @@ class Product(models.Model):
         return f"{self.name} [{self.sku}]"
 
 
-class Vehicle(models.Model):
-    registration_number = models.CharField(max_length=24, unique=True)
-    transport_company = models.CharField(max_length=120, default="Safisana Ghana")
-    is_active = models.BooleanField(default=True)
-
-    def __str__(self):
-        return self.registration_number
-
-
 class Waybill(models.Model):
     class Status(models.TextChoices):
         DRAFT = "draft", "Draft"
@@ -101,38 +92,6 @@ class Waybill(models.Model):
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="created_waybills"
     )
-    approved_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="approved_waybills",
-    )
-    approved_at = models.DateTimeField(null=True, blank=True)
-    warehouse_officer = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="loaded_waybills",
-    )
-    loaded_at = models.DateTimeField(null=True, blank=True)
-
-    driver = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="assigned_waybills",
-    )
-    vehicle = models.ForeignKey(Vehicle, on_delete=models.PROTECT, null=True, blank=True)
-    driver_phone = models.CharField(max_length=32, blank=True)
-
-    dispatch_at = models.DateTimeField(null=True, blank=True)
-    dispatch_lat = models.DecimalField(max_digits=10, decimal_places=6, null=True, blank=True)
-    dispatch_lng = models.DecimalField(max_digits=10, decimal_places=6, null=True, blank=True)
-    dispatch_gps_accuracy = models.FloatField(null=True, blank=True)
-
     delivery_at = models.DateTimeField(null=True, blank=True)
     delivery_device_at = models.DateTimeField(null=True, blank=True)
     delivery_lat = models.DecimalField(max_digits=10, decimal_places=6, null=True, blank=True)
@@ -140,14 +99,11 @@ class Waybill(models.Model):
     delivery_gps_accuracy = models.FloatField(null=True, blank=True)
     gps_unavailable_reason = models.CharField(max_length=240, blank=True)
 
-    customer_rep_name = models.CharField(max_length=160, blank=True)
-    customer_rep_role = models.CharField(max_length=80, blank=True)
+    received_by_name = models.CharField(max_length=160, blank=True)
     authorised_signature = models.ImageField(upload_to="signatures/", blank=True, null=True)
     customer_signature = models.ImageField(upload_to="signatures/", blank=True, null=True)
     dispatched_signature = models.ImageField(upload_to="signatures/", blank=True, null=True)
     delivery_notes = models.TextField(blank=True)
-    failure_reason = models.TextField(blank=True)
-    cancellation_reason = models.TextField(blank=True)
 
     pdf_file = models.FileField(upload_to="waybills/", blank=True, null=True)
     pdf_version = models.PositiveIntegerField(default=0)
@@ -198,23 +154,11 @@ class WaybillItem(models.Model):
     waybill = models.ForeignKey(Waybill, on_delete=models.CASCADE, related_name="items")
     product = models.ForeignKey(Product, on_delete=models.PROTECT, null=True, blank=True)
     product_name = models.CharField(max_length=200, blank=True)
-    sku = models.CharField(max_length=40, blank=True)
-    unit_of_measure = models.CharField(max_length=24, blank=True)
-    ordered_qty = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    loaded_qty = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
-    delivered_qty = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
-    rejected_qty = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    batch_number = models.CharField(max_length=64, blank=True)
     notes = models.CharField(max_length=240, blank=True)
 
     def save(self, *args, **kwargs):
-        if self.product_id:
-            if not self.product_name:
-                self.product_name = self.product.name
-            if not self.sku:
-                self.sku = self.product.sku
-            if not self.unit_of_measure:
-                self.unit_of_measure = self.product.unit_of_measure
+        if self.product_id and not self.product_name:
+            self.product_name = self.product.name
         super().save(*args, **kwargs)
 
 
