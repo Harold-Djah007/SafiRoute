@@ -142,7 +142,7 @@ CI verifies the iOS release build without signing. A distributable IPA/TestFligh
 
 ## Native offline/security behavior
 
-The native app stores waybill JSON encrypted with AES-GCM before SQLite persistence. The 256-bit local key and API token are kept through secure OS credential storage.
+The native app stores waybill JSON encrypted with AES-GCM before SQLite persistence. The 256-bit local key and short-lived mobile session credential are kept through secure OS credential storage.
 
 Completed offline waybills remain on the phone until HQ accepts them. Sync failures use bounded retry backoff, reconnecting wakes the queue automatically, and manual sync is still available. Replays use the same client UUID so the server does not create duplicates.
 
