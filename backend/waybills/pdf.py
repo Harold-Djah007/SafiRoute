@@ -157,7 +157,7 @@ def generate_waybill_pdf(waybill):
             Paragraph(
                 f"Authorised by: {waybill.authorised_by_name or '—'}<br/>"
                 f"Dispatched by: {waybill.dispatched_by_name or '—'}<br/>"
-                f"Received by: {waybill.customer_rep_name or '—'}<br/>"
+                f"Received by: {waybill.received_by_name or '—'}<br/>"
                 f"Completed: {timezone.localtime(waybill.delivery_at).strftime('%d %b %Y %H:%M') if waybill.delivery_at else '—'}",
                 body,
             ),
@@ -228,7 +228,7 @@ def generate_waybill_pdf(waybill):
         Paragraph(
             f"Authorised by: <b>{waybill.authorised_by_name or '—'}</b><br/>"
             f"Dispatched by: <b>{waybill.dispatched_by_name or '—'}</b><br/>"
-            f"Received by: <b>{waybill.customer_rep_name or '—'}</b><br/>"
+            f"Received by: <b>{waybill.received_by_name or '—'}</b><br/>"
             f"I certify that I have received the above items.<br/>"
             f"Notes: {waybill.delivery_notes or waybill.authorised_remarks or '—'}<br/>"
             f"Delivery GPS: {gps}<br/>"
