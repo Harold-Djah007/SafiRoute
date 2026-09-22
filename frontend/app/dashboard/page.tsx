@@ -46,7 +46,7 @@ export default function DashboardPage() {
             {name ? name + ", here are the Sales waybills" : "Sales waybills"}
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-ink/65">
-            The signatures on the waybill are the sign-off. There is no separate supervisor, warehouse or driver approval stage.
+            The Authorised, Dispatch and Received signatures on the waybill are the complete sign-off record.
           </p>
         </div>
         <Link href="/field/new" className="tap rounded-xl bg-forest-800 px-4 py-3 text-sm font-semibold text-cream">
