@@ -16,14 +16,13 @@ type Verify = {
   deliver_to?: string;
   delivery_contact_name?: string;
   contact_phone?: string;
-  branch: string;
   created_at: string;
-  dispatch_at: string | null;
-  delivery_at: string | null;
+  completed_at: string | null;
   pdf_version: number;
   item_count: number;
-  has_customer_signature: boolean;
-  has_driver_signature: boolean;
+  has_authorised_signature: boolean;
+  has_dispatched_signature: boolean;
+  has_received_signature: boolean;
   has_gps?: boolean;
   photo_count?: number;
 };
@@ -43,7 +42,10 @@ export default function VerifyPage() {
   }, [params.token]);
 
   const complete =
-    !!data?.has_customer_signature && !!data?.has_driver_signature && data.status !== "cancelled";
+    !!data?.has_authorised_signature &&
+    !!data?.has_dispatched_signature &&
+    !!data?.has_received_signature &&
+    data.status === "completed";
 
   return (
     <div className="mx-auto min-h-dvh max-w-lg px-4 py-10">
@@ -58,13 +60,18 @@ export default function VerifyPage() {
         )}
         {data && (
           <>
-            <div className={`mt-4 inline-flex rounded-full px-3 py-1 text-sm font-semibold ${complete ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900"}`}>
+            <div
+              className={`mt-4 inline-flex rounded-full px-3 py-1 text-sm font-semibold ${
+                complete ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900"
+              }`}
+            >
               {data.authentic ? "Authentic Safisana record" : "Record found"}
             </div>
             <h1 className="mt-3 font-display text-4xl text-forest-800">{data.waybill_number}</h1>
             <p className="mt-2 text-lg">
               {data.status_display} · {data.issuer || "Safisana Ghana Limited"}
             </p>
+
             <dl className="mt-6 space-y-2 text-sm">
               <div className="flex justify-between gap-4">
                 <dt>Deliver to</dt>
@@ -77,32 +84,20 @@ export default function VerifyPage() {
                 </div>
               )}
               <div className="flex justify-between gap-4">
-                <dt>Branch</dt>
-                <dd>{data.branch}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
                 <dt>Created</dt>
                 <dd>{formatWhen(data.created_at)}</dd>
               </div>
               <div className="flex justify-between gap-4">
-                <dt>Dispatched</dt>
-                <dd>{formatWhen(data.dispatch_at)}</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt>Delivered</dt>
-                <dd>{formatWhen(data.delivery_at)}</dd>
+                <dt>Completed</dt>
+                <dd>{formatWhen(data.completed_at)}</dd>
               </div>
               <div className="flex justify-between gap-4">
                 <dt>Signatures</dt>
-                <dd>
-                  {data.has_customer_signature && data.has_driver_signature
-                    ? "Customer + driver on file"
-                    : "Incomplete"}
-                </dd>
+                <dd>{complete ? "Authorised + Dispatch + Received" : "Incomplete"}</dd>
               </div>
               <div className="flex justify-between gap-4">
-                <dt>GPS stamp</dt>
-                <dd>{data.has_gps ? "Captured at delivery" : "Not recorded"}</dd>
+                <dt>GPS proof</dt>
+                <dd>{data.has_gps ? "Captured" : "Optional · not recorded"}</dd>
               </div>
               <div className="flex justify-between gap-4">
                 <dt>Photos</dt>
@@ -117,8 +112,7 @@ export default function VerifyPage() {
         )}
       </div>
       <p className="mt-6 text-center text-xs text-ink/50">
-        Safisana Ghana · Read-only verification · No login required. A valid code means this document was issued by
-        SafiRoute; it does not replace warehouse receiving checks.
+        Safisana Ghana · Read-only verification · No login required.
       </p>
     </div>
   );
