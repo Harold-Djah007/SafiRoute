@@ -9,6 +9,7 @@ duplicate.
 from __future__ import annotations
 
 import base64
+from decimal import Decimal, InvalidOperation
 from uuid import UUID
 
 from django.core.files.base import ContentFile
