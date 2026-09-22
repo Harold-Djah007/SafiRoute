@@ -43,7 +43,6 @@ export type WaybillItem = {
   id: number;
   product: number | null;
   product_name: string;
-  ordered_qty: string;
   notes: string;
 };
 
