@@ -1,8 +1,6 @@
 """Seed SafiRoute with Sales-only demo data for local testing."""
 
 import base64
-from decimal import Decimal
-
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand, CommandError
@@ -122,7 +120,6 @@ class Command(BaseCommand):
             waybill=draft,
             product=products[1],
             product_name=products[1].name,
-            ordered_qty=Decimal("1"),
             notes="40 bags",
         )
         record_audit(draft, sales, "created", to_status=draft.status)
@@ -140,7 +137,7 @@ class Command(BaseCommand):
             authorised_by_name="Kwame Asante",
             authorised_remarks="Approved and released",
             dispatched_by_name="Ama Mensah",
-            customer_rep_name="Joseph Tetteh",
+            received_by_name="Joseph Tetteh",
             delivery_at=timezone.now(),
             delivery_device_at=timezone.now(),
             delivery_notes="Received in good condition",
@@ -159,7 +156,6 @@ class Command(BaseCommand):
             waybill=completed,
             product=products[0],
             product_name=products[0].name,
-            ordered_qty=Decimal("1"),
             notes="150 bags · Dry and sealed",
         )
         record_audit(
