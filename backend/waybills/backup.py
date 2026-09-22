@@ -116,7 +116,6 @@ def restore_encrypted_backup(source: Path, *, replace: bool = True) -> dict:
             AuditLog,
             Customer,
             Product,
-            Vehicle,
             Waybill,
             WaybillItem,
             WaybillPhoto,
@@ -130,7 +129,6 @@ def restore_encrypted_backup(source: Path, *, replace: bool = True) -> dict:
         Waybill.objects.all().delete()
         Customer.objects.all().delete()
         Product.objects.all().delete()
-        Vehicle.objects.all().delete()
         Token.objects.all().delete()
     fixture_path = source.with_suffix(".restore.json")
     try:
