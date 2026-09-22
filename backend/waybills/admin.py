@@ -45,7 +45,7 @@ class WaybillAdmin(admin.ModelAdmin):
         "deliver_to",
         "authorised_by_name",
         "dispatched_by_name",
-        "customer_rep_name",
+        "received_by_name",
     )
     inlines = [WaybillItemInline, AuditInline]
     readonly_fields = (
