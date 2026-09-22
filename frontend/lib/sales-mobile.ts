@@ -8,7 +8,6 @@ const REFERENCES = "references";
 
 export type MobileLine = {
   description: string;
-  qty: string;
   remarks: string;
 };
 
@@ -180,7 +179,7 @@ function localNumber(now = new Date()) {
 }
 
 export function emptyLine(): MobileLine {
-  return { description: "", qty: "", remarks: "" };
+  return { description: "", remarks: "" };
 }
 
 export function createSalesWaybill(authorisedBy = "", settings?: SalesMobileSettings): SalesWaybill {
@@ -379,7 +378,7 @@ export function isMeaningfulSalesDraft(waybill: SalesWaybill) {
       waybill.deliveryAddress.trim() ||
       waybill.contactName.trim() ||
       waybill.contactPhone.trim() ||
-      waybill.items.some((item) => item.description.trim() || item.qty || item.remarks.trim()) ||
+      waybill.items.some((item) => item.description.trim() || item.remarks.trim()) ||
       waybill.dispatchedBy.trim() ||
       waybill.receivedBy.trim() ||
       waybill.photo ||
@@ -404,8 +403,8 @@ function ingestPayload(waybill: SalesWaybill) {
     dispatched_by_name: waybill.dispatchedBy,
     received_by: waybill.receivedBy,
     items: waybill.items
-      .filter((item) => item.description.trim() || item.qty || item.remarks.trim())
-      .map((item) => ({ product_name: item.description.trim(), ordered_qty: item.qty, notes: item.remarks })),
+      .filter((item) => item.description.trim() || item.remarks.trim())
+      .map((item) => ({ product_name: item.description.trim(), notes: item.remarks })),
     authorised_signature: waybill.authorisedSignature,
     dispatched_signature: waybill.dispatchedSignature,
     customer_signature: waybill.customerSignature,
