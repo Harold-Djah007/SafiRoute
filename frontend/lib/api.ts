@@ -2,13 +2,7 @@ export const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
 export const API_ORIGIN =
   process.env.NEXT_PUBLIC_API_ORIGIN || "http://127.0.0.1:8877";
 
-export type Role =
-  | "admin"
-  | "sales"
-  | "supervisor"
-  | "warehouse"
-  | "driver"
-  | "finance";
+export type Role = "admin" | "sales";
 
 export type User = {
   id: number;
@@ -27,7 +21,7 @@ export type User = {
 export type WaybillList = {
   id: number;
   waybill_number: string;
-  status: string;
+  status: "draft" | "completed" | "voided";
   status_display: string;
   sync_status: string;
   customer: number;
@@ -36,28 +30,20 @@ export type WaybillList = {
   delivery_contact_name?: string;
   delivery_address_text?: string;
   contact_phone?: string;
-  driver: number | null;
-  driver_name: string;
-  branch: string;
-  sales_order_ref: string;
+  authorised_by_name?: string;
+  dispatched_by_name?: string;
+  created_by_name: string;
   item_count: number;
   created_at: string;
-  dispatch_at: string | null;
   delivery_at: string | null;
   updated_at: string;
 };
 
 export type WaybillItem = {
   id: number;
-  product: number;
+  product: number | null;
   product_name: string;
-  sku: string;
-  unit_of_measure: string;
   ordered_qty: string;
-  loaded_qty: string | null;
-  delivered_qty: string | null;
-  rejected_qty: string;
-  batch_number: string;
   notes: string;
 };
 
@@ -66,7 +52,7 @@ export type Waybill = {
   waybill_number: string;
   verification_token: string;
   verification_url: string;
-  status: string;
+  status: "draft" | "completed" | "voided";
   status_display: string;
   sync_status: string;
   customer: number;
@@ -78,10 +64,6 @@ export type Waybill = {
     phone: string;
     ghana_post_gps: string;
   };
-  sales_order_ref: string;
-  invoice_ref: string;
-  po_ref: string;
-  branch: string;
   deliver_to: string;
   delivery_contact_name: string;
   delivery_address_text: string;
@@ -91,24 +73,17 @@ export type Waybill = {
   authorised_remarks: string;
   dispatched_by_name: string;
   created_by_detail?: User;
-  driver: number | null;
-  driver_detail: User | null;
-  vehicle: number | null;
-  vehicle_detail: { registration_number: string; transport_company: string } | null;
-  driver_phone: string;
-  dispatch_at: string | null;
   delivery_at: string | null;
+  delivery_device_at: string | null;
   delivery_lat: string | null;
   delivery_lng: string | null;
+  delivery_gps_accuracy: number | null;
   gps_unavailable_reason: string;
-  customer_rep_name: string;
-  customer_rep_role: string;
+  received_by: string;
   authorised_signature: string | null;
+  dispatched_signature: string | null;
   customer_signature: string | null;
-  driver_signature: string | null;
   delivery_notes: string;
-  failure_reason: string;
-  cancellation_reason: string;
   pdf_file: string | null;
   pdf_version: number;
   document_fingerprint?: string;
@@ -125,6 +100,7 @@ export type Waybill = {
     detail: Record<string, unknown>;
   }[];
   created_at: string;
+  updated_at: string;
 };
 
 const USER_KEY = "safiroute_user";
