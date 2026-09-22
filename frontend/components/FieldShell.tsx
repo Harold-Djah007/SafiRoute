@@ -50,9 +50,9 @@ export function FieldShell({ children }: { children: React.ReactNode }) {
         router.replace("/");
         return;
       }
-      if (current.role !== "sales") {
+      if (!["sales", "admin"].includes(current.role)) {
         setOpening(false);
-        router.replace("/dashboard");
+        router.replace("/");
         return;
       }
       setUser(current);
