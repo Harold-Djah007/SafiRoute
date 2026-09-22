@@ -22,7 +22,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Customer, User, Vehicle, Waybill, WaybillItem, WaybillPhoto, record_audit
+from .models import Customer, User, Waybill, WaybillItem, WaybillPhoto, record_audit
 from .pdf import generate_waybill_pdf
 
 
@@ -111,7 +111,6 @@ def _ingest_sales_waybill(request):
     authorised_by = (data.get("authorised_by_name") or "").strip()
     dispatched_by = (data.get("dispatched_by_name") or "").strip()
     received_by = (data.get("received_by") or "").strip()
-    registration = (data.get("vehicle_registration") or "").strip().upper()
     gps_reason = (data.get("gps_unavailable_reason") or "").strip()
 
     required = {
@@ -170,13 +169,6 @@ def _ingest_sales_waybill(request):
             phone=(data.get("contact_phone") or "")[:32],
         )
 
-    vehicle = None
-    if registration:
-        vehicle, _ = Vehicle.objects.get_or_create(
-            registration_number=registration[:24],
-            defaults={"transport_company": "Safisana Ghana", "is_active": True},
-        )
-
     device_timestamp = parse_datetime(str(data.get("device_timestamp") or "")) or timezone.now()
     document_date = parse_date(str(data.get("document_date") or "")) or timezone.localdate()
 
@@ -184,7 +176,7 @@ def _ingest_sales_waybill(request):
         client_uuid=uid,
         customer=customer,
         created_by=request.user,
-        status=Waybill.Status.DELIVERED,
+        status=Waybill.Status.COMPLETED,
         sync_status=Waybill.SyncStatus.SYNCED,
         sales_order_ref=(data.get("phone_number") or "")[:64],
         deliver_to=deliver_to[:200],
@@ -195,9 +187,7 @@ def _ingest_sales_waybill(request):
         authorised_by_name=authorised_by[:160],
         authorised_remarks=data.get("authorised_remarks") or "",
         dispatched_by_name=dispatched_by[:160],
-        vehicle=vehicle,
         customer_rep_name=received_by[:160],
-        customer_rep_role=(data.get("received_by_role") or "")[:80],
         delivery_notes=data.get("delivery_notes") or "",
         delivery_at=timezone.now(),
         delivery_device_at=device_timestamp,
@@ -216,8 +206,6 @@ def _ingest_sales_waybill(request):
             waybill=waybill,
             product_name=line["product_name"],
             ordered_qty=line["ordered_qty"],
-            loaded_qty=line["ordered_qty"],
-            delivered_qty=line["ordered_qty"],
             notes=line["notes"],
         )
 
