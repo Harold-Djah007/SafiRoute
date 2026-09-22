@@ -8,7 +8,7 @@ const SALES_USER = {
   full_name: "Ama Mensah",
   email: "",
   role: "sales",
-  role_display: "Sales Officer",
+  role_display: "Sales User",
   phone: "",
   employee_id: "CI-SALES",
   branch: "Ashaiman Plant",
@@ -30,8 +30,18 @@ test.describe("installable SafiRoute Sales PWA", () => {
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
     await expect(page.getByLabel("Username")).toBeVisible();
-    await expect(page.getByText("Sales — mobile waybill pad")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Open Sales waybills" })).toBeVisible();
+    await expect(page.getByText("Sales user")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Open SafiRoute" })).toBeVisible();
+  });
+
+  test("website no longer presents retired operational roles", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByText("Sales user")).toBeVisible();
+    await expect(page.getByText("Sales administrator")).toBeVisible();
+    await expect(page.getByText(/warehouse/i)).toHaveCount(0);
+    await expect(page.getByText(/driver/i)).toHaveCount(0);
+    await expect(page.getByText(/finance/i)).toHaveCount(0);
+    await expect(page.getByText(/supervisor/i)).toHaveCount(0);
   });
 
   test("Sales waybill home and animation render without Django", async ({ page }) => {
@@ -46,6 +56,27 @@ test.describe("installable SafiRoute Sales PWA", () => {
     await expect(page.getByText("Sale → signed → verified")).toBeVisible();
     await expect(page.getByText("Your digital pad is ready")).toBeVisible();
     await expect(page.getByText("Today's runs")).toHaveCount(0);
+  });
+
+  test("new waybill mirrors the simple Safisana paper form", async ({ page }) => {
+    await page.goto("/");
+    await page.evaluate((user) => {
+      sessionStorage.setItem("safiroute_user", JSON.stringify(user));
+    }, SALES_USER);
+
+    await page.goto("/field/new");
+    await expect(page.getByLabel("Deliver to:")).toBeVisible();
+    await expect(page.getByLabel("Delivery Contact Name:")).toBeVisible();
+    await expect(page.getByLabel("Contact Phone:")).toBeVisible();
+    await expect(page.getByLabel("Address:")).toBeVisible();
+    await expect(page.getByText("Description", { exact: true })).toBeVisible();
+    await expect(page.getByText("Remarks", { exact: true }).first()).toBeVisible();
+    await expect(page.getByLabel("Authorised by:")).toBeVisible();
+    await expect(page.getByLabel("Dispatched by:")).toBeVisible();
+    await expect(page.getByLabel("Received by:")).toBeVisible();
+    await expect(page.getByText("Digital proof")).toBeVisible();
+    await expect(page.getByText("Vehicle registration")).toHaveCount(0);
+    await expect(page.getByText("Driver")).toHaveCount(0);
   });
 
   test("service worker keeps the Sales waybill shell available offline", async ({ page, context }) => {

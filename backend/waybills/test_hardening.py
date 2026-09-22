@@ -130,29 +130,126 @@ class SessionAuthTests(TestCase):
         )
         self.assertEqual(blocked.status_code, 429)
 
-    def test_api_token_login_is_available_and_rate_limited(self):
-        token_res = self.client.post(
+    def test_retired_long_lived_token_login_is_not_exposed(self):
+        response = self.client.post(
             "/api/auth/token/",
             {"username": "sales", "password": "safiroute"},
             format="json",
         )
-        self.assertEqual(token_res.status_code, 200, token_res.data)
-        self.assertTrue(token_res.data["token"])
+        self.assertEqual(response.status_code, 404)
 
+
+class MobileAuthTests(TestCase):
+    def setUp(self):
         cache.clear()
-        for _ in range(10):
-            res = self.client.post(
-                "/api/auth/token/",
-                {"username": "sales", "password": "wrong-password"},
-                format="json",
-            )
-            self.assertEqual(res.status_code, 400)
-        blocked = self.client.post(
-            "/api/auth/token/",
-            {"username": "sales", "password": "wrong-password"},
+        self.sales = User.objects.create_user(
+            "mobile-sales",
+            password="safiroute",
+            role=User.Role.SALES,
+        )
+        self.legacy_user = User.objects.create_user(
+            "legacy-non-sales",
+            password="safiroute",
+            role="driver",
+        )
+        self.client = APIClient()
+
+    def _mobile_token(self):
+        response = self.client.post(
+            "/api/auth/mobile-token/",
+            {"username": "mobile-sales", "password": "safiroute"},
             format="json",
         )
-        self.assertEqual(blocked.status_code, 429)
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["token_type"], "Mobile")
+        self.assertIn("expires_in", response.data)
+        return response.data["token"]
+
+    def test_mobile_token_authenticates_sales_user(self):
+        token = self._mobile_token()
+        response = self.client.post(
+            "/api/auth/mobile-token/",
+            {"username": "mobile-sales", "password": "safiroute"},
+            format="json",
+        )
+        self.assertGreater(response.data["expires_in"], 0)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Mobile {token}")
+        response = self.client.get("/api/me/")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["username"], "mobile-sales")
+
+    def test_mobile_token_endpoint_rejects_non_sales_role(self):
+        response = self.client.post(
+            "/api/auth/mobile-token/",
+            {"username": "legacy-non-sales", "password": "safiroute"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("Sales", response.data["detail"])
+
+    @override_settings(MOBILE_TOKEN_MAX_AGE_SECONDS=-1)
+    def test_mobile_token_expires(self):
+        token = self._mobile_token()
+        self.client.credentials(HTTP_AUTHORIZATION=f"Mobile {token}")
+        response = self.client.get("/api/me/")
+        self.assertEqual(response.status_code, 403)
+
+    def test_password_change_revokes_mobile_token(self):
+        token = self._mobile_token()
+        self.sales.set_password("new-safe-password")
+        self.sales.save(update_fields=["password"])
+        self.client.credentials(HTTP_AUTHORIZATION=f"Mobile {token}")
+        response = self.client.get("/api/me/")
+        self.assertEqual(response.status_code, 403)
+
+
+class ReferenceDataPermissionTests(TestCase):
+    def setUp(self):
+        self.sales = User.objects.create_user(
+            "reference-sales",
+            password="safiroute",
+            role=User.Role.SALES,
+        )
+        self.admin = User.objects.create_user(
+            "reference-admin",
+            password="safiroute",
+            role=User.Role.ADMIN,
+        )
+
+    def test_sales_can_read_but_cannot_mutate_master_data(self):
+        cases = [
+            (
+                "/api/customers/",
+                {
+                    "name": "Protected Customer",
+                    "account_number": "REF-CUST-1",
+                    "delivery_address": "Accra",
+                },
+            ),
+            (
+                "/api/products/",
+                {
+                    "name": "Protected Product",
+                    "sku": "REF-PROD-1",
+                    "unit_of_measure": "bag",
+                },
+            ),
+        ]
+
+        sales_client = APIClient()
+        sales_client.force_authenticate(self.sales)
+        for endpoint, payload in cases:
+            self.assertEqual(sales_client.get(endpoint).status_code, 200)
+            self.assertEqual(
+                sales_client.post(endpoint, payload, format="json").status_code,
+                403,
+            )
+
+        admin_client = APIClient()
+        admin_client.force_authenticate(self.admin)
+        for endpoint, payload in cases:
+            response = admin_client.post(endpoint, payload, format="json")
+            self.assertEqual(response.status_code, 201, response.data)
 
 
 class FingerprintTests(TestCase):
@@ -163,11 +260,11 @@ class FingerprintTests(TestCase):
         self.waybill = Waybill.objects.create(
             customer=self.customer,
             created_by=self.sales,
-            status=Waybill.Status.DELIVERED,
+            status=Waybill.Status.COMPLETED,
             deliver_to="Test Farm",
-            customer_rep_name="Kojo",
+            received_by_name="Kojo",
         )
-        WaybillItem.objects.create(waybill=self.waybill, product=self.product, ordered_qty=4, delivered_qty=4)
+        WaybillItem.objects.create(waybill=self.waybill, product=self.product)
 
     def test_pdf_fingerprint_is_stored_and_printed(self):
         generate_waybill_pdf(self.waybill)
@@ -194,7 +291,7 @@ class FingerprintTests(TestCase):
 
     def test_audit_chain_detects_tamper(self):
         record_audit(self.waybill, self.sales, "created", to_status="draft")
-        record_audit(self.waybill, self.sales, "completed", "draft", "delivered")
+        record_audit(self.waybill, self.sales, "completed", "draft", "completed")
         ok, detail = verify_audit_chain(self.waybill)
         self.assertTrue(ok, detail)
         entry = self.waybill.audit_logs.order_by("id").first()
@@ -217,7 +314,7 @@ class BackupRestoreTests(TestCase):
             sales_order_ref="SO-BACKUP",
             deliver_to="Backup Farm",
         )
-        WaybillItem.objects.create(waybill=self.waybill, product=self.product, ordered_qty=7)
+        WaybillItem.objects.create(waybill=self.waybill, product=self.product)
         self.waybill.pdf_file.save("note.txt", ContentFile(b"waybill-media"), save=True)
 
     def test_encrypt_backup_and_restore_roundtrip(self):

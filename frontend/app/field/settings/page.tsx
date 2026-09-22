@@ -5,6 +5,8 @@ import { SignaturePad } from "@/components/SignaturePad";
 import { readUser } from "@/lib/api";
 import {
   buildSalesBackup,
+  decryptSalesBackup,
+  encryptSalesBackup,
   flushSalesWaybills,
   getSalesMobileSettings,
   hashPin,
@@ -91,27 +93,50 @@ export default function SalesMobileSettingsPage() {
 
   async function exportBackup() {
     if (!settings) return;
+    const passphrase = window.prompt(
+      "Create a backup password (at least 8 characters). You will need it to restore this backup."
+    );
+    if (passphrase == null) return;
+    if (passphrase.length < 8) {
+      setNotice("Use at least 8 characters for the backup password.");
+      return;
+    }
+
     const waybills = await listSalesWaybills();
     const exportedAt = new Date().toISOString();
-    const payload = buildSalesBackup(settings, waybills);
-    const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }));
+    const payload = await encryptSalesBackup(buildSalesBackup(settings, waybills), passphrase);
+    const url = URL.createObjectURL(
+      new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" })
+    );
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `safiroute-sales-backup-${exportedAt.slice(0, 10)}.json`;
+    anchor.download = `safiroute-sales-backup-${exportedAt.slice(0, 10)}.safiroute`;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
     URL.revokeObjectURL(url);
     const saved = await saveSalesMobileSettings({ ...settings, lastBackupAt: exportedAt });
     setSettings(saved);
-    setNotice("Backup exported. Keep a copy away from this phone.");
+    setNotice("Encrypted backup exported. Keep the file and password in separate safe places.");
   }
 
   async function restoreBackup(file: File) {
     setRestoring(true);
     setNotice("Checking backup…");
     try {
-      const payload = JSON.parse(await file.text()) as unknown;
+      let payload = JSON.parse(await file.text()) as unknown;
+      if (
+        payload &&
+        typeof payload === "object" &&
+        (payload as { format?: string }).format === "sales-mobile-backup-v2"
+      ) {
+        const passphrase = window.prompt("Enter the backup password.");
+        if (passphrase == null) {
+          setNotice("Restore cancelled.");
+          return;
+        }
+        payload = await decryptSalesBackup(payload, passphrase);
+      }
       const result = await restoreSalesBackup(payload);
       setSettings(result.settings);
       await refresh();
@@ -169,16 +194,6 @@ export default function SalesMobileSettingsPage() {
         </details>
         <details className="sales-settings-details">
           <summary className="sales-settings-row">
-            <span className="sales-settings-icon lime">▣</span>
-            <span className="sales-settings-copy"><b>Usual vehicle</b><small>Pre-fills new waybills</small></span>
-            <span className="sales-settings-value">{settings.vehicleNumber || "Not set"}</span><i>›</i>
-          </summary>
-          <div className="sales-settings-editor">
-            <label>Vehicle registration<input value={settings.vehicleNumber} onChange={(event) => setSettings({ ...settings, vehicleNumber: event.target.value.toUpperCase() })} placeholder="GT 0000-00" /></label>
-          </div>
-        </details>
-        <details className="sales-settings-details">
-          <summary className="sales-settings-row">
             <span className="sales-settings-icon gold">✎</span>
             <span className="sales-settings-copy"><b>Sales signature</b><small>Pre-fills Authorised by</small></span>
             <span className="sales-settings-value">{settings.authorisedSignature ? "Saved" : "Not saved"}</span><i>›</i>
@@ -230,14 +245,14 @@ export default function SalesMobileSettingsPage() {
       <section className="sales-settings-group">
         <button type="button" className="sales-settings-row settings-button" onClick={exportBackup}>
           <span className="sales-settings-icon forest">↑</span>
-          <span className="sales-settings-copy"><b>Export backup</b><small>{settings.lastBackupAt ? `Last: ${new Date(settings.lastBackupAt).toLocaleDateString("en-GH")}` : "Keep a copy off this phone"}</small></span><i>›</i>
+          <span className="sales-settings-copy"><b>Export backup</b><small>{settings.lastBackupAt ? `Last: ${new Date(settings.lastBackupAt).toLocaleDateString("en-GH")}` : "Encrypted copy off this phone"}</small></span><i>›</i>
         </button>
         <label className={`sales-settings-row settings-button ${restoring ? "is-disabled" : ""}`}>
           <span className="sales-settings-icon gold">↓</span>
           <span className="sales-settings-copy"><b>{restoring ? "Restoring…" : "Restore backup"}</b><small>Bring saved waybills back to this phone</small></span><i>›</i>
           <input
             type="file"
-            accept="application/json,.json"
+            accept="application/json,.json,.safiroute"
             hidden
             disabled={restoring}
             onChange={(event) => {

@@ -184,7 +184,6 @@ export function SalesWaybillEditor({ waybillId }: Props) {
     const now = new Date().toISOString();
     let saved: SalesWaybill = {
       ...waybill,
-      items: waybill.items.map((item) => (item.description.trim() && !item.qty ? { ...item, qty: "1" } : item)),
       status: "completed",
       syncStatus: "pending",
       completedAt: now,

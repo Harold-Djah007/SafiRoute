@@ -1,109 +1,124 @@
-# Safisana Ghana Digital Waybill — SafiRoute
+# SafiRoute — Safisana Digital Waybill Blueprint
 
-**Product:** SafiRoute  
-**Tagline:** Every delivery. Verified.  
-**Department:** Sales  
-**Type:** Standalone web and mobile system  
-**Version:** 0.2 — first runnable MVP
+## Product definition
 
-Primary objective: replace paper-based sales waybills with a secure, trackable digital workflow that works in the field, including when internet connectivity is unavailable.
+SafiRoute is a **Sales Department digital waybill system** for Safisana Ghana.
 
-This document is the working blueprint. Field names, approval rules, and PDF layout must still be validated against Safisana’s current paper waybill.
+Both the website and the Android/iOS/PWA mobile app are for the Sales team. SafiRoute is not a warehouse-management, driver-dispatch, finance, or multi-department approval system.
 
-## 1. Working assumption
+## Users
 
-SafiRoute records dispatch and delivery of products sold by Safisana Ghana to customers — primarily Fortifer organic fertilizer and related soil products from the Ashaiman plant. The flow runs from Sales creating an order/waybill through warehouse dispatch, driver delivery, customer acceptance, and final document archiving.
+There are only two SafiRoute account types:
 
-## 2. Product vision
+- **Sales User** — creates, signs, completes, syncs, searches and reviews waybills.
+- **Sales Administrator** — a Sales-side administrator with the same waybill access plus user/reference-data administration and oversight.
 
-Staff can create, approve, dispatch, deliver, sign, verify, and retrieve waybills without paper or stitching information together from different sources.
+The following are **not SafiRoute accounts**:
 
-- Web dashboard for Sales, warehouse, supervisors, finance/audit, and administrators
-- Android-first mobile app for drivers (Flutter), plus a mobile web field app at `/field`
-- Customer-facing QR verification page (no app install)
-- Shared Django REST API and PostgreSQL-ready database
+- Authorised by
+- Dispatched by
+- Received by
 
-## 3. MVP workflow
+They are fields/signatures on the waybill itself.
 
-1. Sales creates a draft waybill from a confirmed customer sale.
-2. The system assigns a unique waybill number (`SR-YYYY-NNNNNN`).
-3. A supervisor approves the waybill when approval is required.
-4. Warehouse staff confirm the items and quantities loaded.
-5. A driver and vehicle are assigned.
-6. The driver downloads the assigned delivery before departure.
-7. At delivery, the app captures GPS, arrival time, photos, notes, delivered quantities, and discrepancies.
-8. The customer enters their name and signs on the driver’s device.
-9. The driver signs and completes the delivery, including offline.
-10. The app synchronizes automatically when connectivity returns (idempotent `client_uuid`).
-11. The server generates a tamper-evident PDF with a QR verification code.
-12. Sales and authorized staff view, download, print, or share the PDF.
+## Waybill lifecycle
 
-## 4. Waybill statuses
+The supported lifecycle is deliberately simple:
 
-| Status | Meaning |
-| --- | --- |
-| Draft | Sales is preparing the waybill |
-| Pending approval | Waiting for an authorized reviewer |
-| Approved | Cleared for loading and dispatch |
-| Loaded | Warehouse has confirmed loaded quantities |
-| Dispatched | Driver has departed with the goods |
-| In transit | Delivery is active |
-| Delivered | Customer received and signed |
-| Partially delivered | Some quantities were not accepted or delivered |
-| Delivery failed | Delivery could not be completed |
-| Cancelled | Cancelled with a recorded reason |
+1. Sales opens SafiRoute.
+2. Sales creates a waybill using the same structure as the Safisana paper form.
+3. The waybill may remain a Draft while being filled.
+4. Authorised by signs on the waybill.
+5. Dispatched by signs on the waybill.
+6. Received by signs on the waybill.
+7. Sales completes the waybill.
+8. If offline, it stays safely on the device as Waiting for HQ.
+9. When connectivity returns, it syncs exactly once to HQ.
+10. HQ stores the completed immutable record, generates the PDF/QR verification record, and retains the audit trail.
 
-Completed waybills are not silently edited. Corrections must create an auditable amendment or authorized reversal.
+There is **no separate supervisor approval queue**, no warehouse loading stage, no driver assignment stage, and no finance workflow.
 
-## 5. Core information captured
+## Paper waybill fields
 
-Waybill identity, customer (including GhanaPost GPS), products (ordered/loaded/delivered/rejected, batch), transport, and proof of delivery (signatures, photos, device + server timestamps, GPS accuracy).
+The digital form follows the physical Safisana waybill:
 
-## 6. Required capabilities (MVP coverage)
+- Deliver to
+- Date
+- Delivery Contact Name
+- Contact Phone
+- Address
+- Description
+- Remarks
+- Authorised by
+- Authorised signature
+- Authorised date
+- Authorised remarks
+- Dispatched by
+- Dispatch signature
+- Dispatch date
+- Received by
+- Received signature
+- Received date
 
-| Capability | First version |
-| --- | --- |
-| Offline operation | Field web + Flutter cache assignments; complete_delivery is idempotent |
-| Digital signatures | Canvas / stylus capture bound to the waybill |
-| GPS and timestamps | Captured when available; reason required when missing |
-| Photos and attachments | Multipart upload on complete |
-| QR verification | Opaque token, public `/verify/{token}` page |
-| Automatic PDFs | Server-side ReportLab PDF after delivery |
-| Roles and audit | Role-filtered API + immutable audit log |
+Digital proof such as GPS and a delivery photo is optional and remains secondary to the paper-style form.
 
-## 7. User roles
+## Website
 
-Administrator, Sales officer, Sales supervisor, Warehouse officer, Driver / delivery officer, Finance / audit viewer.
+The Sales website is the larger-screen workspace for:
 
-Drivers only see waybills assigned to them.
+- Sales overview
+- all waybills
+- search/filter
+- viewing completed records
+- PDFs
+- QR verification
+- audit history
+- reference data
+- Sales-user administration
 
-## 8. Architecture
+## Mobile
 
-- Web: Next.js (React) dashboard + public verification + `/field` driver UI
-- Mobile: Flutter (Android first)
-- Backend: Django REST Framework
-- Database: SQLite for local demo; PostgreSQL in production
-- Files: local media in demo; S3-compatible storage later
-- Auth: DRF token auth (MFA and refresh tokens in a later phase)
+The native/PWA mobile app is the field pad for:
 
-## 9. Demo accounts
+- creating the waybill
+- offline drafts
+- signatures
+- optional GPS/photo
+- completing the waybill
+- automatic reconnect sync
 
-Password for all seeded users: `safiroute`
+## Status model
 
-| Username | Role |
-| --- | --- |
-| admin | Administrator |
-| sales | Ama Mensah — Sales officer |
-| supervisor | Kwame Asante — Sales supervisor |
-| warehouse | Efua Boateng — Warehouse officer |
-| driver | Kofi Owusu — Driver |
-| driver2 | Abena Sarpong — Driver |
-| finance | Yaw Agyeman — Finance / audit |
+Supported document statuses:
 
-## 10. Decisions still needed
+- **Draft**
+- **Completed**
+- **Voided** — retained only for audit/legal record handling when required
 
-A clear photo or scan of Safisana’s current paper sales waybill remains the most important input. Also confirm numbering format, approval thresholds, signature wording, customer PDF delivery channel (email / WhatsApp / print), and whether accounting or inventory integration is required for v1.
+Sync state is separate from document status.
 
-## 11. Branding note
+## Security and integrity
 
-The name SafiRoute should undergo a formal trademark and domain check before public release. Palette: forest green `#0F5C2E` and gold `#C9A227`, reflecting Safisana’s work in renewable energy and organic fertilizer.
+- Django session authentication for the website
+- short-lived signed Sales credentials for native mobile
+- role restriction to Sales User / Sales Administrator
+- encrypted native local waybill storage
+- passphrase-protected PWA backups
+- HTTPS required for production native builds
+- idempotent client UUID sync
+- immutable completed records
+- hash-chained audit history
+- PDF SHA-256 integrity checks
+- production PostgreSQL requirement
+- encrypted server backups
+
+## Release evidence still required
+
+Repository tests can prove code and build behavior. Production release still requires:
+
+- real Safisana Sales field pilot
+- permanent Azure deployment
+- production Android signing
+- Apple Developer/TestFlight signing
+- backup/restore drill
+- independent security review

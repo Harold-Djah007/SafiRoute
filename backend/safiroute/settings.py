@@ -63,7 +63,6 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
-    "rest_framework.authtoken",
     "corsheaders",
     "django_filters",
     "waybills",
@@ -187,10 +186,17 @@ API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8877")
 BACKUP_ENCRYPTION_KEY = os.getenv("BACKUP_ENCRYPTION_KEY", "")
 BACKUP_DIR = Path(os.getenv("BACKUP_DIR", str(BASE_DIR / "backups")))
 
+MOBILE_TOKEN_MAX_AGE_SECONDS = int(
+    os.getenv(
+        "MOBILE_TOKEN_MAX_AGE_SECONDS",
+        str(30 * 24 * 60 * 60 if DEBUG else 7 * 24 * 60 * 60),
+    )
+)
+
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
-        "rest_framework.authentication.TokenAuthentication",
+        "waybills.authentication.MobileTokenAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",

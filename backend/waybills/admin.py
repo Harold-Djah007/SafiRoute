@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
-from .models import AuditLog, Customer, Product, User, Vehicle, Waybill, WaybillItem, WaybillPhoto
+from .models import AuditLog, Customer, Product, User, Waybill, WaybillItem, WaybillPhoto
 
 
 @admin.register(User)
@@ -9,16 +9,17 @@ class UserAdmin(BaseUserAdmin):
     list_display = ("username", "first_name", "last_name", "role", "branch", "is_active")
     list_filter = ("role", "is_active", "branch")
     fieldsets = BaseUserAdmin.fieldsets + (
-        ("SafiRoute", {"fields": ("role", "phone", "employee_id", "branch")}),
+        ("SafiRoute Sales", {"fields": ("role", "phone", "employee_id", "branch")}),
     )
     add_fieldsets = BaseUserAdmin.add_fieldsets + (
-        ("SafiRoute", {"fields": ("role", "phone", "employee_id", "branch")}),
+        ("SafiRoute Sales", {"fields": ("role", "phone", "employee_id", "branch")}),
     )
 
 
 class WaybillItemInline(admin.TabularInline):
     model = WaybillItem
     extra = 0
+    fields = ("product_name", "notes")
 
 
 class AuditInline(admin.TabularInline):
@@ -29,9 +30,23 @@ class AuditInline(admin.TabularInline):
 
 @admin.register(Waybill)
 class WaybillAdmin(admin.ModelAdmin):
-    list_display = ("waybill_number", "customer", "status", "driver", "created_at")
-    list_filter = ("status", "branch", "sync_status")
-    search_fields = ("waybill_number", "customer__name", "sales_order_ref")
+    list_display = (
+        "waybill_number",
+        "deliver_to",
+        "status",
+        "authorised_by_name",
+        "dispatched_by_name",
+        "created_at",
+    )
+    list_filter = ("status", "sync_status")
+    search_fields = (
+        "waybill_number",
+        "customer__name",
+        "deliver_to",
+        "authorised_by_name",
+        "dispatched_by_name",
+        "received_by_name",
+    )
     inlines = [WaybillItemInline, AuditInline]
     readonly_fields = (
         "waybill_number",
@@ -45,6 +60,5 @@ class WaybillAdmin(admin.ModelAdmin):
 
 admin.site.register(Customer)
 admin.site.register(Product)
-admin.site.register(Vehicle)
 admin.site.register(WaybillPhoto)
 admin.site.register(AuditLog)

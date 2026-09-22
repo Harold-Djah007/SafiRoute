@@ -62,8 +62,7 @@ export function WaybillPad({ waybill }: { waybill: Waybill }) {
       <table className="waybill-grid mt-5 text-sm">
         <thead>
           <tr>
-            <th className="w-[58%]">Description</th>
-            <th className="w-[12%]">Qty</th>
+            <th className="w-[70%]">Description</th>
             <th>Remarks</th>
           </tr>
         </thead>
@@ -71,10 +70,7 @@ export function WaybillPad({ waybill }: { waybill: Waybill }) {
           {waybill.items.map((item) => (
             <tr key={item.id}>
               <td className="px-2 py-2">{item.product_name}</td>
-              <td className="px-2 py-2">
-                {item.delivered_qty ?? item.loaded_qty ?? item.ordered_qty} {item.unit_of_measure}
-              </td>
-              <td className="px-2 py-2">{item.notes || item.batch_number || "—"}</td>
+              <td className="px-2 py-2">{item.notes || "—"}</td>
             </tr>
           ))}
         </tbody>
@@ -89,31 +85,34 @@ export function WaybillPad({ waybill }: { waybill: Waybill }) {
         </div>
         <div className="space-y-2">
           <p>
-            Dispatched by: <b>{waybill.dispatched_by_name || waybill.driver_detail?.full_name || "—"}</b>
+            Dispatched by: <b>{waybill.dispatched_by_name || "—"}</b>
           </p>
           <p className="italic">I certify that I have received the above items.</p>
-          {waybill.customer_rep_name && (
-            <p>
-              Received by: <b>{waybill.customer_rep_name}</b>
-              {waybill.customer_rep_role ? ` · ${waybill.customer_rep_role}` : ""}
-            </p>
-          )}
+          <p>
+            Received by: <b>{waybill.received_by || "—"}</b>
+          </p>
           {waybill.delivery_at && <p>Date: {formatWhen(waybill.delivery_at)}</p>}
         </div>
       </div>
 
-      {(waybill.customer_signature || waybill.driver_signature) && (
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+      {(waybill.authorised_signature || waybill.dispatched_signature || waybill.customer_signature) && (
+        <div className="mt-5 grid gap-4 sm:grid-cols-3">
+          {waybill.authorised_signature && (
+            <figure className="rounded-xl bg-white/70 p-3">
+              <figcaption className="text-xs uppercase tracking-wide text-[#3d6680]">Authorised signature</figcaption>
+              <img src={mediaUrl(waybill.authorised_signature)} alt="Authorised signature" className="mt-1 h-20 object-contain" />
+            </figure>
+          )}
+          {waybill.dispatched_signature && (
+            <figure className="rounded-xl bg-white/70 p-3">
+              <figcaption className="text-xs uppercase tracking-wide text-[#3d6680]">Dispatch signature</figcaption>
+              <img src={mediaUrl(waybill.dispatched_signature)} alt="Dispatch signature" className="mt-1 h-20 object-contain" />
+            </figure>
+          )}
           {waybill.customer_signature && (
             <figure className="rounded-xl bg-white/70 p-3">
               <figcaption className="text-xs uppercase tracking-wide text-[#3d6680]">Received signature</figcaption>
-              <img src={mediaUrl(waybill.customer_signature)} alt="Customer signature" className="mt-1 h-20 object-contain" />
-            </figure>
-          )}
-          {waybill.driver_signature && (
-            <figure className="rounded-xl bg-white/70 p-3">
-              <figcaption className="text-xs uppercase tracking-wide text-[#3d6680]">Driver signature</figcaption>
-              <img src={mediaUrl(waybill.driver_signature)} alt="Driver signature" className="mt-1 h-20 object-contain" />
+              <img src={mediaUrl(waybill.customer_signature)} alt="Received signature" className="mt-1 h-20 object-contain" />
             </figure>
           )}
         </div>

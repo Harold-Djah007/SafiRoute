@@ -4,7 +4,7 @@ SafiRoute handles operational delivery records, signatures, GPS data, photos, an
 
 ## Supported code
 
-Security fixes are applied to the current production branch and the latest release candidate only. Unsupported experimental clients, including the Flutter scaffold until it is promoted to a supported release, must not be used for production data.
+Security fixes are applied to the current production branch and the latest release candidate only. The supported clients are the Sales website, Sales PWA, and native Android/iOS Sales app. Retired supervisor, warehouse, driver, and finance workflows are not supported.
 
 ## Reporting a vulnerability
 
@@ -23,6 +23,10 @@ Report the vulnerability privately to the repository owner or Safisana's authori
 - Run the CI dependency audits before release and remediate high/critical findings.
 - Run `check_audit_chain` and `check_pdf_integrity` after restores or suspected tampering.
 - Never use demo users/passwords or `seed_demo` in production.
+- Native mobile waybill records are encrypted at rest and native credentials are stored through secure OS storage.
+- Production native builds must use HTTPS. Android production artifacts must be signed with an organization-controlled keystore; iOS distribution requires organization-controlled Apple signing.
+- Mobile Sales sessions are signed, time-limited, role-restricted, and revoked by a password change.
+- PWA backup exports use passphrase-protected AES-GCM; store the backup file and password separately.
 
 ## Incident response
 

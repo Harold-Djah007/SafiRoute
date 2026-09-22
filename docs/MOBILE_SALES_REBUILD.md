@@ -1,24 +1,26 @@
-# SafiRoute Sales mobile rebuild
+# SafiRoute Sales mobile
 
-The supported phone experience is the Sales digital waybill pad at `/field`.
+SafiRoute mobile is the field companion for the **Safisana Sales team**.
 
-## Product scope
+There is no driver, warehouse, finance, or approval account workflow. The people named on the physical waybill are captured as sign-off fields:
 
-- Sales-only mobile workflow; there is no driver phone workflow.
-- Local-first waybill drafts in IndexedDB with autosave.
-- Three signatures: Sales/Authorised, Dispatch, and Customer/Received-by.
-- GPS (or an explicit unavailable reason), delivery photo, timestamps, and offline completion.
-- Completed waybills remain `Waiting for HQ` until the authenticated Django ingest endpoint accepts the client UUID.
-- Idempotent mobile ingest prevents duplicate waybills when a queued completion is retried.
-- HQ generates the tamper-evident PDF and QR-verifiable record after acceptance.
-- Grouped phone Settings includes phone, usual vehicle, saved Sales signature, optional PIN lock, backup export, install instructions, and manual sync.
-- The mobile home includes a subtle live waybill-route animation to communicate the delivery/verification flow without distracting from field work.
+- **Authorised by** + signature
+- **Dispatched by** + signature
+- **Received by** + signature
 
-## Routes
+Those signatures are the approval/sign-off evidence for the waybill.
 
-- `/field` — Sales mobile home and saved waybills.
-- `/field/new` — create a new local-first waybill.
-- `/field/waybill/<local-uuid>` — reopen a draft or view a completed local record.
-- `/field/settings` — grouped phone settings.
+The mobile app provides:
 
-Legacy driver routes under `/field/run` and `/field/queue` are not part of the supported Sales mobile experience.
+- offline-first Sales waybill creation
+- paper-style fields matching the Safisana pad
+- line-style signatures
+- optional GPS and delivery photo
+- encrypted local storage
+- automatic reconnect sync to HQ
+- duplicate-safe retries
+- phone PIN lock
+- encrypted backup/restore
+- native Android/iOS builds and PWA install support
+
+Completed waybills sync to the same Sales website where the team can search, review, print PDFs, verify QR codes, and audit records.

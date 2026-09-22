@@ -1,16 +1,7 @@
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import (
-    AuditLog,
-    Customer,
-    Product,
-    User,
-    Vehicle,
-    Waybill,
-    WaybillItem,
-    WaybillPhoto,
-)
+from .models import AuditLog, Customer, Product, User, Waybill, WaybillItem, WaybillPhoto
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -49,12 +40,6 @@ class ProductSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
-class VehicleSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Vehicle
-        fields = "__all__"
-
-
 class WaybillItemSerializer(serializers.ModelSerializer):
     product = serializers.PrimaryKeyRelatedField(
         queryset=Product.objects.all(), required=False, allow_null=True
@@ -62,30 +47,18 @@ class WaybillItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = WaybillItem
-        fields = [
-            "id",
-            "product",
-            "product_name",
-            "sku",
-            "unit_of_measure",
-            "ordered_qty",
-            "loaded_qty",
-            "delivered_qty",
-            "rejected_qty",
-            "batch_number",
-            "notes",
-        ]
+        fields = ["id", "product", "product_name", "notes"]
 
 
 class WaybillPhotoSerializer(serializers.ModelSerializer):
     class Meta:
         model = WaybillPhoto
-        fields = ["id", "image", "caption", "captured_at", "uploaded_by"]
-        read_only_fields = ["uploaded_by"]
+        fields = ["id", "image", "caption", "captured_at"]
+        read_only_fields = fields
 
 
 class AuditLogSerializer(serializers.ModelSerializer):
-    actor_name = serializers.CharField(source="actor.get_full_name", read_only=True)
+    actor_name = serializers.SerializerMethodField()
 
     class Meta:
         model = AuditLog
@@ -94,12 +67,14 @@ class AuditLogSerializer(serializers.ModelSerializer):
             "action",
             "from_status",
             "to_status",
-            "detail",
-            "actor",
             "actor_name",
             "device_timestamp",
             "created_at",
+            "detail",
         ]
+
+    def get_actor_name(self, obj):
+        return obj.actor.get_full_name() or obj.actor.username
 
 
 class WaybillSerializer(serializers.ModelSerializer):
@@ -110,11 +85,10 @@ class WaybillSerializer(serializers.ModelSerializer):
         queryset=Customer.objects.all(), required=False, allow_null=True
     )
     customer_detail = CustomerSerializer(source="customer", read_only=True)
-    driver_detail = UserSerializer(source="driver", read_only=True)
     created_by_detail = UserSerializer(source="created_by", read_only=True)
-    vehicle_detail = VehicleSerializer(source="vehicle", read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     verification_url = serializers.SerializerMethodField()
+    received_by = serializers.CharField(source="received_by_name", read_only=True)
 
     class Meta:
         model = Waybill
@@ -129,10 +103,6 @@ class WaybillSerializer(serializers.ModelSerializer):
             "client_uuid",
             "customer",
             "customer_detail",
-            "sales_order_ref",
-            "invoice_ref",
-            "po_ref",
-            "branch",
             "deliver_to",
             "delivery_contact_name",
             "delivery_address_text",
@@ -141,35 +111,18 @@ class WaybillSerializer(serializers.ModelSerializer):
             "authorised_by_name",
             "authorised_remarks",
             "dispatched_by_name",
-            "created_by",
             "created_by_detail",
-            "approved_by",
-            "approved_at",
-            "warehouse_officer",
-            "loaded_at",
-            "driver",
-            "driver_detail",
-            "vehicle",
-            "vehicle_detail",
-            "driver_phone",
-            "dispatch_at",
-            "dispatch_lat",
-            "dispatch_lng",
-            "dispatch_gps_accuracy",
             "delivery_at",
             "delivery_device_at",
             "delivery_lat",
             "delivery_lng",
             "delivery_gps_accuracy",
             "gps_unavailable_reason",
-            "customer_rep_name",
-            "customer_rep_role",
+            "received_by",
             "authorised_signature",
+            "dispatched_signature",
             "customer_signature",
-            "driver_signature",
             "delivery_notes",
-            "failure_reason",
-            "cancellation_reason",
             "pdf_file",
             "pdf_version",
             "document_fingerprint",
@@ -183,18 +136,29 @@ class WaybillSerializer(serializers.ModelSerializer):
         read_only_fields = [
             "waybill_number",
             "verification_token",
-            "created_by",
-            "approved_by",
-            "approved_at",
-            "warehouse_officer",
-            "loaded_at",
-            "dispatch_at",
+            "status",
+            "sync_status",
+            "client_uuid",
+            "created_by_detail",
             "delivery_at",
+            "delivery_device_at",
+            "delivery_lat",
+            "delivery_lng",
+            "delivery_gps_accuracy",
+            "gps_unavailable_reason",
+            "received_by",
+            "authorised_signature",
+            "dispatched_signature",
+            "customer_signature",
+            "delivery_notes",
             "pdf_file",
             "pdf_version",
             "document_fingerprint",
             "pdf_sha256",
-            "status",
+            "photos",
+            "audit_logs",
+            "created_at",
+            "updated_at",
         ]
 
     def get_verification_url(self, obj):
@@ -258,16 +222,14 @@ class WaybillSerializer(serializers.ModelSerializer):
             product = item.get("product")
             if not product and not name:
                 continue
-            if item.get("ordered_qty") in (None, ""):
-                item["ordered_qty"] = 0
             WaybillItem.objects.create(waybill=waybill, **item)
 
 
 class WaybillListSerializer(serializers.ModelSerializer):
     customer_name = serializers.SerializerMethodField()
-    driver_name = serializers.SerializerMethodField()
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     item_count = serializers.IntegerField(source="items.count", read_only=True)
+    created_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Waybill
@@ -283,13 +245,11 @@ class WaybillListSerializer(serializers.ModelSerializer):
             "delivery_contact_name",
             "delivery_address_text",
             "contact_phone",
-            "driver",
-            "driver_name",
-            "branch",
-            "sales_order_ref",
+            "authorised_by_name",
+            "dispatched_by_name",
+            "created_by_name",
             "item_count",
             "created_at",
-            "dispatch_at",
             "delivery_at",
             "updated_at",
         ]
@@ -297,7 +257,5 @@ class WaybillListSerializer(serializers.ModelSerializer):
     def get_customer_name(self, obj):
         return obj.deliver_to or obj.customer.name
 
-    def get_driver_name(self, obj):
-        if not obj.driver:
-            return ""
-        return obj.driver.get_full_name() or obj.driver.username
+    def get_created_by_name(self, obj):
+        return obj.created_by.get_full_name() or obj.created_by.username

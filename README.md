@@ -2,194 +2,214 @@
 
 **Every delivery. Verified.**
 
-SafiRoute is Safisana Ghana’s digital waybill and proof-of-delivery system for the Sales department: create, approve, load, dispatch, sign, verify, and archive deliveries — including when drivers are offline.
+SafiRoute is Safisana Ghana's digital waybill system for the **Sales team**. It replaces the paper waybill with an offline-capable digital workflow while preserving the familiar Safisana form: delivery details, description/remarks lines, Authorised signature, Dispatch signature and Received signature.
 
-Repository: https://github.com/Harold-Djah007/SafiRoute
+## Product surfaces
 
-## What’s in this repo
-
-| Path | What it is |
+| Path | Purpose |
 | --- | --- |
-| `backend/` | Django REST API. Local demo may use SQLite. **Production requires PostgreSQL.** |
-| `frontend/` | Next.js HQ dashboard, **supported field PWA** at `/field`, and public QR verification |
-| `mobile/` | **Experimental** Flutter scaffold — not the supported field app |
-| `docs/` | Project blueprint and [recovery runbook](docs/RECOVERY.md) |
-| `assets/` | SafiRoute logo and app icon |
-| `scripts/` | One-command API and web starters |
-| `.github/workflows/ci.yml` | Dependency audits, Django/PostgreSQL gates, Next.js build + Playwright (Pixel-sized and desktop Chromium) |
+| `backend/` | Django REST API, PDF/QR verification, audit chain, encrypted server backup/restore |
+| `frontend/` | Next.js HQ and supported Sales PWA at `/field` |
+| `mobile/` | Supported native Sales app for Android and iOS |
+| `docs/` | Release gates, recovery runbook and project blueprint |
+| `assets/` | SafiRoute logo and application icon |
 
-## Test run (local)
+SafiRoute is **Sales-only on both web and mobile**. The only operational account is a Sales User. A Sales Administrator can manage/oversee the Sales system. Authorised by, Dispatched by, and Received by are waybill sign-off fields, not separate SafiRoute accounts.
 
-You need **Python 3.12, 3.13, or 3.14** and **Node 20+**. Flutter is optional.
+## Current capabilities
 
-**Windows (PowerShell)** — use the production-ready `main` branch:
+- Sales-only website and native/PWA mobile apps
+- paper-style digital Safisana waybill
+- offline drafts and completion
+- three line-style signatures
+- optional GPS and delivery photo
+- automatic reconnect synchronization
+- duplicate-safe client UUID ingestion
+- HQ PDF generation and QR verification
+- PDF fingerprint and hash-chained audit history
+- production PostgreSQL enforcement
+- optional Azure Blob media storage
+- encrypted backend backup/restore
+- Android APK + release-mode AAB build verification
+- iOS release compilation verification
+- encrypted native local waybill storage
+- secure native credential storage
+- dependency audits and automated browser/native CI
+
+## Quick local run — Windows PowerShell
+
+Clone/update:
 
 ```powershell
-cd $HOME\SafiRoute
+cd "$HOME\projects\SafiRoute"
 git switch main
-git pull --ff-only
-
-cd backend
-deactivate 2>$null
-if (Test-Path .\venv) { Remove-Item -Recurse -Force .\venv }
-py -3 -m venv venv
-.\venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-python manage.py migrate
-python manage.py seed_demo
-python manage.py runserver 127.0.0.1:8877
+git pull origin main
 ```
 
-Windows often blocks ports 8000 and 8080. **8877** is the SafiRoute local API port. Keep this window open.
+### Backend
 
-Then in a **second** PowerShell window (stop any old `npm run dev` first with Ctrl+C):
+Docker Desktop must be running.
 
 ```powershell
-cd $HOME\SafiRoute
-git switch main
-git pull --ff-only
+cd "$HOME\projects\SafiRoute"
+docker compose up --build
+```
 
-cd frontend
+The local Django API is available at:
+
+```text
+http://localhost:8000/api
+```
+
+Demo Sales login in local/debug data:
+
+```text
+Username: sales
+Password: safiroute
+```
+
+### Web / Sales PWA
+
+Open a second PowerShell:
+
+```powershell
+cd "$HOME\projects\SafiRoute\frontend"
 npm ci
+
 @"
 NEXT_PUBLIC_API_URL=/api
-NEXT_PUBLIC_API_ORIGIN=http://127.0.0.1:8877
-DJANGO_ORIGIN=http://127.0.0.1:8877
+NEXT_PUBLIC_API_ORIGIN=http://127.0.0.1:8000
+DJANGO_ORIGIN=http://127.0.0.1:8000
 "@ | Set-Content .env.local
-npm run dev
+
+npm run dev -- -H 0.0.0.0
 ```
 
-Open http://localhost:3000
+Open:
 
-**macOS / Linux**
-
-```bash
-cd "$HOME/SafiRoute"
-git switch main
-git pull --ff-only
-
-cd backend
-python3 -m venv venv
-# If that fails on Ubuntu: sudo apt install python3.12-venv
-source venv/bin/activate
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-python manage.py migrate
-python manage.py seed_demo
-python manage.py runserver 127.0.0.1:8877
+```text
+http://localhost:3000/field
 ```
 
-**Terminal 2 — Web app**
+Use `sales / safiroute`.
 
-```bash
-cd "$HOME/SafiRoute/frontend"
-npm ci
-cp .env.example .env.local
-npm run dev
-```
+## Native Android
 
-Open **http://localhost:3000**
+The Android app uses the same Sales waybill workflow as the PWA.
 
-Or from the repo root:
+```powershell
+cd "$HOME\projects\SafiRoute\mobile"
 
-```bash
-./scripts/run-api.sh    # terminal 1
-./scripts/run-web.sh    # terminal 2
-```
-
-### Demo logins
-
-Password for every seeded account: **`safiroute`**
-
-| Username | Use this to… |
-| --- | --- |
-| `sales` | Create and submit waybills |
-| `supervisor` | Approve |
-| `warehouse` | Confirm load and dispatch |
-| `driver` | Complete a field delivery (`/field`) |
-| `finance` | Read-only operations view |
-| `admin` | Everything, plus `/admin/` |
-
-API: http://127.0.0.1:8877/api/  
-Django admin: http://127.0.0.1:8877/admin/  
-Health: http://127.0.0.1:8877/api/health/
-
-### Field-ready driver flow (supported mobile app)
-
-The supported field client is the **installable PWA** at **http://localhost:3000/field** (Add to Home Screen). Sign in as `driver` (password `safiroute`).
-
-1. Tap **Download for offline** while you still have signal. Assigned waybills (loaded / dispatched / in transit) are stored on the phone.
-2. Open a run. Quantities, GPS, photos, and both signatures work with no coverage.
-3. Complete the delivery. If 4G is down, the proof queues on the device and sends when the phone is online again. Replays use the same client UUID so they cannot double-post.
-4. Add `/field` to the home screen for a full-screen driver app. Browser automation covers Pixel-sized and desktop Chromium in GitHub Actions (`frontend` Playwright tests). A Safisana real-device plant pilot is still required before calling the field app proven on sales phones.
-
-### Suggested click-through
-
-1. Sign in as `sales` → **New waybill** → save draft → **Submit for approval**
-2. Sign in as `supervisor` → open the waybill → **Approve**
-3. Sign in as `warehouse` → enter loaded qty / batch → **Confirm loaded** → assign driver/vehicle → **Dispatch**
-4. Sign in as `driver` → **Field app** → download → open the assignment → sign both pads → **Complete delivery**
-5. Open the verification link on the waybill, or download the branded PDF
-
-## Mobile
-
-**Supported:** the installable `/field` PWA (service worker + web app manifest). That is the field app Safisana should put on sales and driver phones.
-
-**Experimental:** `mobile/` is an unfinished Flutter scaffold. Do not treat it as a shippable Android app. It must not be used to judge product readiness.
-
-```bash
-# Experimental only — not required for a field trial of the PWA
-cd mobile
-flutter create . --project-name safiroute_mobile --org org.safisana.safiroute
+flutter create --platforms=android --org com.safisana --project-name safiroute .
+python tool/prepare_platforms.py
 flutter pub get
-flutter run --dart-define=SAFIROUTE_API=http://127.0.0.1:8877/api
+dart run flutter_launcher_icons -f tool/icons-android.yaml
+dart run flutter_native_splash:create --path=tool/splash-android.yaml
+flutter analyze
+flutter test
+
+flutter build apk --debug --dart-define=SAFIROUTE_ALLOW_INSECURE_API=true
 ```
 
-## Backend tests
+Output:
+
+```text
+mobile\build\app\outputs\flutter-apk\app-debug.apk
+```
+
+For the Android emulator, the default backend is `http://10.0.2.2:8000/api`. A physical phone must use a backend URL reachable from that phone.
+
+Release-mode mobile builds require HTTPS unless explicitly compiled for local/debug testing.
+
+## Native iOS
+
+iOS builds require macOS + Xcode:
 
 ```bash
-cd backend
-source venv/bin/activate
-python manage.py test
+cd mobile
+flutter create --platforms=ios --org com.safisana --project-name safiroute .
+python3 tool/prepare_platforms.py
+flutter pub get
+dart run flutter_launcher_icons -f tool/icons-ios.yaml
+dart run flutter_native_splash:create --path=tool/splash-ios.yaml
+flutter analyze
+flutter test
+flutter build ios --release --no-codesign \
+  --dart-define=SAFIROUTE_API=https://YOUR-SAFIROUTE-DOMAIN/api
 ```
 
-## Production operations
+CI verifies the iOS release build without signing. A distributable IPA/TestFlight/App Store build requires Apple Developer signing credentials and an App Store Connect record.
 
-Production (`DJANGO_ENV=production` or `DEBUG=False`) **refuses SQLite**, wildcard `ALLOWED_HOSTS`, and the demo secret. Set PostgreSQL via `DB_ENGINE=django.db.backends.postgresql` and `DB_NAME` / `DB_USER` / `DB_PASSWORD` / `DB_HOST`.
+## Native offline/security behavior
 
-For internet-facing production, serve every application subdomain over HTTPS before enabling HSTS include-subdomains/preload. Configure `SECURE_HSTS_SECONDS`, `SECURE_HSTS_INCLUDE_SUBDOMAINS`, `SECURE_HSTS_PRELOAD`, secure cookies and `TRUST_X_FORWARDED_PROTO` to match the reverse proxy or Azure ingress.
+The native app stores waybill JSON encrypted with AES-GCM before SQLite persistence. The 256-bit local key and short-lived mobile session credential are kept through secure OS credential storage.
 
-Optional but supported when fully configured:
+Completed offline waybills remain on the phone until HQ accepts them. Sync failures use bounded retry backoff, reconnecting wakes the queue automatically, and manual sync is still available. Replays use the same client UUID so the server does not create duplicates.
 
-- **Azure Blob** media — `AZURE_ACCOUNT_NAME` plus `AZURE_ACCOUNT_KEY` or `AZURE_CONNECTION_STRING`, and `AZURE_CONTAINER`. Account name alone does not enable Blob.
-- **Sentry** — `SENTRY_DSN` (stub/example DSNs are ignored).
-- **Encrypted backups** — `BACKUP_ENCRYPTION_KEY` (Fernet). See [docs/RECOVERY.md](docs/RECOVERY.md).
+## Automated quality gates
 
-Integrity commands after restore or suspected tampering:
+`.github/workflows/ci.yml` verifies:
+
+- Python dependency audit
+- Django dependency consistency and tests
+- production Django deployment checks
+- PostgreSQL 17 migrations/tests
+- Node production dependency audit
+- Next.js production build
+- Pixel-sized and desktop offline PWA acceptance tests
+
+`.github/workflows/mobile-native.yml` verifies:
+
+- native dependency install
+- SafiRoute launcher icons and splash generation
+- `flutter analyze`
+- `flutter test`
+- Android debug APK compilation
+- Android release-mode AAB compilation
+- iOS release compilation without signing
+
+See `docs/RELEASE_GATES.md` for the full release standard.
+
+## Production deployment
+
+Production uses `DEBUG=False` and **must not use SQLite**. Configure PostgreSQL with:
+
+```text
+DB_ENGINE=django.db.backends.postgresql
+DB_NAME=...
+DB_USER=...
+DB_PASSWORD=...
+DB_HOST=...
+```
+
+Also configure explicit `ALLOWED_HOSTS`, trusted CSRF/CORS origins, HTTPS, secure cookies and the permanent SafiRoute public/API URLs.
+
+Supported production integrations:
+
+- Azure Blob media with a real account key or connection string
+- Sentry or an equivalent monitored error channel
+- encrypted backups through `BACKUP_ENCRYPTION_KEY`
+
+Recovery/integrity commands:
 
 ```bash
 python manage.py encrypt_backup
-python manage.py restore_backup --input /path/to/safiroute.enc            # dry-run decrypt
+python manage.py restore_backup --input /path/to/safiroute.enc
 python manage.py restore_backup --input /path/to/safiroute.enc --confirm YES
 python manage.py check_audit_chain
 python manage.py check_pdf_integrity
 ```
 
-Browser login uses Django sessions (HttpOnly cookie) plus CSRF; API tokens remain available for scripts. Demo password `safiroute` exists only when `DEBUG=True` (`seed_demo` is disabled in production).
+See `docs/RECOVERY.md`.
 
-CI (`.github/workflows/ci.yml`) blocks regressions with Python and Node dependency audits, Django tests, production deployment checks and the full Django test suite against PostgreSQL, plus a Next.js production build and Pixel-sized/desktop Chromium offline-PWA tests.
+## What still requires real-world evidence
 
-## Architecture
+Repository automation can prove builds, tests, dependency status and configuration rules. It cannot honestly prove:
 
-Django REST + Next.js field PWA. Local demo uses SQLite so nothing else has to be installed. Production is PostgreSQL, optional Azure Blob, encrypted backups, and hash-chained audit / PDF fingerprints (see `docs/Safisana_Digital_Waybill_Project_Blueprint.md` and `docs/RECOVERY.md`).
+- a successful Safisana field pilot on the exact phones staff will use
+- Android Play production signing without the organization's keystore
+- iOS TestFlight/App Store signing without Apple Developer credentials
+- the permanent Azure deployment before that infrastructure exists
+- an independent external security review
 
-Not yet proven outside this repo: a Safisana real-device plant pilot, and an external security review.
-
-## Branding
-
-- `assets/safiroute-logo.png` — wordmark lockup
-- `assets/safiroute-icon.png` — app / favicon mark
-- Palette: forest `#0F5C2E`, gold `#C9A227`, cream `#F4EFE2`
-
-The product name should still undergo a formal trademark and domain check before public release.
+Those items remain release gates, not hidden assumptions.
