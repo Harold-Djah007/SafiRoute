@@ -6,19 +6,7 @@ import { Suspense, useEffect, useState } from "react";
 import { AppShell, StatusPill, formatWhen } from "@/components/AppShell";
 import { api, type WaybillList } from "@/lib/api";
 
-const STATUSES = [
-  "",
-  "draft",
-  "pending_approval",
-  "approved",
-  "loaded",
-  "dispatched",
-  "in_transit",
-  "delivered",
-  "partially_delivered",
-  "delivery_failed",
-  "cancelled",
-];
+const STATUSES = ["", "draft", "completed", "voided"];
 
 function WaybillListInner() {
   const searchParams = useSearchParams();
@@ -54,13 +42,13 @@ function WaybillListInner() {
           <p className="text-sm uppercase tracking-[0.18em] text-gold-600">Documents</p>
           <h1 className="font-display text-4xl text-forest-800">Waybills</h1>
         </div>
-        <Link href="/waybills/new" className="tap rounded-xl bg-gold-500 px-4 py-3 text-sm font-semibold text-forest-950">
-          Create draft
+        <Link href="/field/new" className="tap rounded-xl bg-gold-500 px-4 py-3 text-sm font-semibold text-forest-950">
+          New waybill
         </Link>
       </div>
       <div className="mb-4 flex flex-wrap gap-3">
         <input
-          placeholder="Search number, customer, phone, invoice…"
+          placeholder="Search number, customer, phone or Sales name…"
           className="tap w-full max-w-md rounded-xl border border-forest-800/15 bg-white px-3 py-3"
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -105,7 +93,7 @@ function WaybillListInner() {
       {!loading && !rows.length && (
         <div className="mt-6 rounded-3xl border border-dashed border-forest-800/20 p-8 text-center">
           <p className="font-display text-2xl text-forest-800">No waybills match</p>
-          <p className="mt-2 text-sm text-ink/70">Try another status, or create a draft from the Safisana pad.</p>
+          <p className="mt-2 text-sm text-ink/70">Try another status, or create a new Safisana waybill.</p>
         </div>
       )}
     </AppShell>
