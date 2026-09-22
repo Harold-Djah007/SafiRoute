@@ -45,6 +45,11 @@ def session_login(request):
     user = _authenticate(request)
     if not user or not user.is_active:
         return Response({"detail": "Invalid credentials."}, status=status.HTTP_400_BAD_REQUEST)
+    if user.role not in {User.Role.SALES, User.Role.ADMIN}:
+        return Response(
+            {"detail": "SafiRoute is for the Safisana Sales team."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
     django_login(request, user)
     return Response(
         {
@@ -63,6 +68,11 @@ def token_login(request):
     user = _authenticate(request)
     if not user or not user.is_active:
         return Response({"detail": "Invalid credentials."}, status=status.HTTP_400_BAD_REQUEST)
+    if user.role not in {User.Role.SALES, User.Role.ADMIN}:
+        return Response(
+            {"detail": "SafiRoute is for the Safisana Sales team."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
     token, _ = Token.objects.get_or_create(user=user)
     return Response({"token": token.key})
 
