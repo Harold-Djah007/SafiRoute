@@ -8,7 +8,6 @@ Both credential endpoints share a source-address rate limit.
 from django.conf import settings
 from django.contrib.auth import authenticate, login as django_login
 from rest_framework import status
-from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, authentication_classes, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -58,23 +57,6 @@ def session_login(request):
             "user": UserSerializer(user).data,
         }
     )
-
-
-@api_view(["POST"])
-@authentication_classes([])
-@permission_classes([AllowAny])
-@throttle_classes([LoginRateThrottle])
-def token_login(request):
-    user = _authenticate(request)
-    if not user or not user.is_active:
-        return Response({"detail": "Invalid credentials."}, status=status.HTTP_400_BAD_REQUEST)
-    if user.role not in {User.Role.SALES, User.Role.ADMIN}:
-        return Response(
-            {"detail": "SafiRoute is for the Safisana Sales team."},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-    token, _ = Token.objects.get_or_create(user=user)
-    return Response({"token": token.key})
 
 
 @api_view(["POST"])
