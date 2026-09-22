@@ -33,7 +33,7 @@ def canonical_payload(waybill) -> dict:
         "authorised_by_name": waybill.authorised_by_name,
         "authorised_remarks": waybill.authorised_remarks,
         "dispatched_by_name": waybill.dispatched_by_name,
-        "received_by": waybill.customer_rep_name,
+        "received_by": waybill.received_by_name,
         "delivery_notes": waybill.delivery_notes,
         "delivery_lat": _qty(waybill.delivery_lat),
         "delivery_lng": _qty(waybill.delivery_lng),
