@@ -89,7 +89,6 @@ class WaybillSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     verification_url = serializers.SerializerMethodField()
     received_by = serializers.CharField(source="customer_rep_name", read_only=True)
-    dispatched_signature = serializers.ImageField(source="driver_signature", read_only=True)
 
     class Meta:
         model = Waybill
