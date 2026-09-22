@@ -148,7 +148,7 @@ class Command(BaseCommand):
         completed.authorised_signature.save(
             "demo-authorised.png", ContentFile(TINY_PNG), save=False
         )
-        completed.driver_signature.save(
+        completed.dispatched_signature.save(
             "demo-dispatched.png", ContentFile(TINY_PNG), save=False
         )
         completed.customer_signature.save(
