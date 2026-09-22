@@ -10,12 +10,8 @@ from .fingerprints import audit_entry_hash
 
 class User(AbstractUser):
     class Role(models.TextChoices):
-        ADMIN = "admin", "Administrator"
-        SALES = "sales", "Sales Officer"
-        SUPERVISOR = "supervisor", "Sales Supervisor"
-        WAREHOUSE = "warehouse", "Warehouse Officer"
-        DRIVER = "driver", "Driver / Delivery Officer"
-        FINANCE = "finance", "Finance / Audit Viewer"
+        ADMIN = "admin", "Sales Administrator"
+        SALES = "sales", "Sales User"
 
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.SALES)
     phone = models.CharField(max_length=32, blank=True)
@@ -70,15 +66,8 @@ class Vehicle(models.Model):
 class Waybill(models.Model):
     class Status(models.TextChoices):
         DRAFT = "draft", "Draft"
-        PENDING_APPROVAL = "pending_approval", "Pending approval"
-        APPROVED = "approved", "Approved"
-        LOADED = "loaded", "Loaded"
-        DISPATCHED = "dispatched", "Dispatched"
-        IN_TRANSIT = "in_transit", "In transit"
-        DELIVERED = "delivered", "Delivered"
-        PARTIALLY_DELIVERED = "partially_delivered", "Partially delivered"
-        DELIVERY_FAILED = "delivery_failed", "Delivery failed"
-        CANCELLED = "cancelled", "Cancelled"
+        COMPLETED = "completed", "Completed"
+        VOIDED = "voided", "Voided"
 
     class SyncStatus(models.TextChoices):
         PENDING = "pending", "Pending"
@@ -202,12 +191,7 @@ class Waybill(models.Model):
 
     @property
     def is_terminal(self):
-        return self.status in {
-            self.Status.DELIVERED,
-            self.Status.PARTIALLY_DELIVERED,
-            self.Status.DELIVERY_FAILED,
-            self.Status.CANCELLED,
-        }
+        return self.status in {self.Status.COMPLETED, self.Status.VOIDED}
 
 
 class WaybillItem(models.Model):
