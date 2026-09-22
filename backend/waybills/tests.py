@@ -1,6 +1,5 @@
 from django.core.cache import cache
 from django.test import TestCase
-from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
 from waybills.models import AuditLog, Customer, Product, User, Waybill, WaybillItem
@@ -39,8 +38,7 @@ class SalesWaybillTests(TestCase):
         self.client = APIClient()
 
     def _auth(self, user):
-        token, _ = Token.objects.get_or_create(user=user)
-        self.client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
+        self.client.force_authenticate(user)
 
     def test_sales_can_create_a_draft_without_approval_pipeline(self):
         self._auth(self.sales)
